@@ -138,6 +138,25 @@ class Params:
             [ProjectLevel.BINNING],
         ),
     ] = "lovisolo_silva"
+    prd_assignment: Annotated[
+        str,
+        ParamInfo(
+            'Rule assigning images to projection directions. "hard" sends each image to its '
+            + "single nearest bin, giving disjoint groups. \"cone\" sends each image to every "
+            + "bin within a cone of prd_cone_width_factor bin widths, giving overlapping groups.",
+            True,
+            [ProjectLevel.BINNING],
+        ),
+    ] = "hard"
+    prd_cone_width_factor: Annotated[
+        float,
+        ParamInfo(
+            "Cone half width as a multiple of the tessellation bin width, used only when "
+            + 'prd_assignment is "cone". Larger values place each image in more directions.',
+            True,
+            [ProjectLevel.BINNING],
+        ),
+    ] = 1.0
 
     # Distance calculation parameters
     distance_filter_type: Annotated[

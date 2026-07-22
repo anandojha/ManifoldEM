@@ -156,7 +156,9 @@ def bin_and_threshold(
     bin_width: float,
     thres_low: int,
     tessellator: str,
-    plane_vec: NDArray[Shape["3"], Float64] = np.array([1.0, 0.0, 0.0])
+    plane_vec: NDArray[Shape["3"], Float64] = np.array([1.0, 0.0, 0.0]),
+    assignment: str = "hard",
+    cone_width_factor: float = 1.0,
 ) -> tuple[NDArray[Shape["*"], Any], NDArray[Shape["3,*"], Float64], NDArray[Shape["*"], Int], list[int]]:
     """
     Bins unit vectors according on a sphere to a specified `bin_width` and keeps bins based on a
@@ -215,14 +217,38 @@ def bin_and_threshold(
     bin_centers = bin_centers[:, mask]
     n_bins = bin_centers.shape[1]
 
-    # For each point in S2, find closest bin
-    neighb_bins, n_points_in_bin = collect_nearest_neighbors(bin_centers.T, S2.T)
+    if assignment == "hard":
+        # Hard partition: each point in S2 goes to its single nearest bin (disjoint groups).
+        neighb_bins, n_points_in_bin = collect_nearest_neighbors(bin_centers.T, S2.T)
 
-    # For each bin, list all points in S2 that live in that bin
-    neighb_list = [[] for _ in range(n_bins)]
-    for i, index in enumerate(neighb_bins.ravel()):
-        neighb_list[index].append(i)
-    neighb_list = np.array([np.array(a) for a in neighb_list], dtype=object)
+        # For each bin, list all points in S2 that live in that bin
+        neighb_list = [[] for _ in range(n_bins)]
+        for i, index in enumerate(neighb_bins.ravel()):
+            neighb_list[index].append(i)
+        neighb_list = np.array([np.array(a) for a in neighb_list], dtype=object)
+    elif assignment == "cone":
+        # Cone rule: each point in S2 joins every bin within cone_width_factor bin widths
+        # of it, so a point near a boundary is shared by more than one bin (overlapping groups).
+        #
+        # Which bins are KEPT is still decided by the hard nearest-neighbour count, so the set
+        # of projection directions is identical to the hard run. Only the membership of each
+        # kept bin is widened to include the shared boundary images.
+        hard_bins, n_points_in_bin = collect_nearest_neighbors(bin_centers.T, S2.T)
+
+        cos_thresh = np.cos(cone_width_factor * bin_width)
+        # cosine of the angle between every point and every bin center; bins and points are unit
+        # vectors already folded to the same hemisphere, so no mirror term is needed here
+        cos_ang = bin_centers.T @ S2  # shape (n_bins, n_points)
+        member = cos_ang >= cos_thresh
+        neighb_list = np.array(
+            [np.where(member[b])[0] for b in range(n_bins)], dtype=object
+        )
+        # n_points_in_bin stays the hard nearest-neighbour count so thresholding keeps the same
+        # bins as the hard partition; neighb_list carries the wider cone membership.
+    else:
+        raise ValueError(
+            f'Invalid assignment supplied ({assignment}). Valid options are ["hard", "cone"]'
+        )
 
     # list bins that have more than thres_low points
     prd_indices = []

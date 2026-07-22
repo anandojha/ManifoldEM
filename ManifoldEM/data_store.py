@@ -490,6 +490,8 @@ class _ProjectionDirections:
                 params.prd_thres_low,
                 tessellator=params.tess_hemisphere_type,
                 plane_vec=plane_vec,
+                assignment=params.prd_assignment,
+                cone_width_factor=params.prd_cone_width_factor,
             )
 
             self.thres_low = params.prd_thres_low
