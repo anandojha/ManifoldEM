@@ -79,12 +79,12 @@ no arguments, it will print a help message and exit.
 % manifold-cli
 ManifoldEM version: 0.3.1.dev60+ga73affd.d20241113
 
-usage: manifold-cli [-h] [-n NCPU] {init,threshold,calc-distance,manifold-analysis,psi-analysis,nlsa-movie,find-ccs,calc-probabilities,trajectory,utility} ...
+usage: manifold-cli [-h] [-n NCPU] {init,threshold,calc-distance,manifold-analysis,psi-analysis,nlsa-movie,find-ccs,probability-landscape,trajectory,utility} ...
 
 Command-line interface for ManifoldEM package
 
 positional arguments:
-  {init,threshold,calc-distance,manifold-analysis,psi-analysis,nlsa-movie,find-ccs,calc-probabilities,trajectory,utility}
+  {init,threshold,calc-distance,manifold-analysis,psi-analysis,nlsa-movie,find-ccs,probability-landscape,trajectory,utility}
     init                0: Initialize new project
     threshold           1: Set upper/lower thresholds for principal direction detection
     calc-distance       2: Calculate S2 distances
@@ -92,7 +92,8 @@ positional arguments:
     psi-analysis        4: Analyze images to get psis
     nlsa-movie          5: Create 2D psi movies
     find-ccs            7: Find conformational coordinates
-    calc-probabilities  8: Calculate probability landscape
+    probability-landscape
+                        8: Calculate probability landscape
     trajectory          9: Calculate trajectory
     utility             Utility functions
 
@@ -206,7 +207,7 @@ line. Here I set a few anchors and will continue on...
 
 ```
 % manifold-cli -n 16 find-ccs params_my_J310_analysis.toml &> /dev/null
-% manifold-cli -n 16 calc-probabilities params_my_J310_analysis.toml &> /dev/null
+% manifold-cli -n 16 probability-landscape params_my_J310_analysis.toml &> /dev/null
 % manifold-cli -n 16 trajectory params_my_J310_analysis.toml &> /dev/null
 ```
 
