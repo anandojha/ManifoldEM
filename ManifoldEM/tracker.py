@@ -499,7 +499,8 @@ def trace_particle(mapper, pid):
 
 
 def trace_prd(mapper, prd):
-    rows = mapper[mapper.prd == prd].sort_values(["frame", "place"])
+    rows = mapper[mapper.prd == prd]
+    rows = rows.assign(no_frame=rows.frame < 0).sort_values(["no_frame", "frame", "place"])  # frames first
     if rows.empty:
         return [f"PD {prd} is not in the mapper"]
     out = [f"PD {prd}, {len(rows)} rows", f"  {'Place':>6} {'Retained':>9} {'Sorted':>7} {'Frame':>6} {'Particle ID':>12} {'State':>6} {'Image':>6}  Fate"]
@@ -516,9 +517,10 @@ def op(fill=False, verify=False, trace_images=(), trace_particles=(), trace_prds
                 print(f"Filling {step}")
                 record(step)
     rows = status()
-    print(f"Tracker file        {os.path.realpath(tracker_file())}")
-    for step, state, when, n_rows in rows:
-        print(f"  {step:<22} {state:<9} {when:<20} {n_rows if n_rows else ''}")
+    if fill or verify or not (trace_images or trace_particles or trace_prds or csv):
+        print(f"Tracker file        {os.path.realpath(tracker_file())}")
+        for step, state, when, n_rows in rows:
+            print(f"  {step:<22} {state:<9} {when:<20} {n_rows if n_rows else ''}")
 
     if verify:
         for step, state, _, _ in rows[:-1]:
