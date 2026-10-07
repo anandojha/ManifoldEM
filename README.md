@@ -222,24 +222,26 @@ every NLSA frame, state image and 2D movie frame. No earlier step is rerun.
 | Option | Does |
 |---|---|
 | `--verify` | Checks every state image against its state star file |
-| `--no-movies` | Skips `movies.csv` (slow for large runs) |
+| `--no-movies` | Leaves the `movie_frames` column empty (saves time on large runs) |
 | `--trace-image STATE IMAGE` | Steps from a state image back to its particle ID |
 | `--trace-particle ID` | Steps of a particle through every PD that holds it |
 | `--trace-prd PD` | Steps for every NLSA frame of a PD |
 
 Trace options can be repeated. Traces are also saved in `trace.txt`.
 
-| File in `output/<project_name>/particle_index/` | One row per | Columns |
-|---|---|---|
-| `frames.csv` | NLSA frame | prd frame C sorted retained place particle_id mirrored tau tau_eq |
-| `states.csv` | State image | state image prd frame particle_id |
-| `movies.csv` | 2D movie position | prd movie_frame frame particle_id |
-| `particles.csv` | Particle | particle_id mirrored pds frames state_images |
+The output is one file, `output/<project_name>/particle_index/particle_index.csv`, with one row per
+particle (one per PD it sits in for cone runs).
 
-In `frames.csv` sorted = frame + C - 1, retained = PosPsi1[sorted], place = posPath[retained] and
-particle_id = ind[place]. state, image and movie_frame count from 1, all other indices from 0. With
-`prd_assignment = "cone"` a particle can appear once per PD it sits in.
-
+| Column | Meaning |
+|---|---|
+| `particle_id` | Star file row, which is also the image index in the stack |
+| `mirrored` | Image flipped by the hemisphere fold |
+| `prd` `C` | PD and its NLSA window length |
+| `place` `retained` `sorted` `frame` | place = index in `ind`, retained = position in `posPath`, sorted = position in `PosPsi1`, frame = sorted - C + 1 |
+| `state` `image` | State and image number in its stack (from 1) |
+| `movie_frames` | Positions in the 2D movie of the PD (from 1) |
+| `tau` `tau_eq` | Position along the motion before and after histogram matching |
+| `fate` | In a state, No frame (start or end of psi order), Trimmed, PD not selected, Over prd_thres_high, In no PD |
 
 ### Python/Jupyter interface
 Researchers/the curious are possibly interested in various things "under the hood" in

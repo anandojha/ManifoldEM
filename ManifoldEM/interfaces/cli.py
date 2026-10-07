@@ -111,7 +111,7 @@ def get_parser():
     particle_index_parser.add_argument("--verify", action="store_true",
                                        help="Check every state image against the angles in its state star file")
     particle_index_parser.add_argument("--no-movies", action="store_true",
-                                       help="Skip movies.csv (slow for large runs)")
+                                       help="Leave the movie_frames column empty (saves time on large runs)")
     particle_index_parser.add_argument("--trace-image", type=int, nargs=2, action="append", default=[], metavar=("STATE", "IMAGE"),
                                        help="Print and save the steps from a state image back to its particle ID (both count from 1)")
     particle_index_parser.add_argument("--trace-particle", type=int, action="append", default=[], metavar="ID",

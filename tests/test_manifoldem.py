@@ -15324,16 +15324,16 @@ def test_state_frames_overlap_for_wider_paths():
     assert counts.min() == 1 and counts.max() == 2
 
 
-def _fake_trajectory_run(rng, sizes, order, overlap=0):
+def _fake_trajectory_run(rng, sizes, order, overlap=0, extra=0):
     """Distance, psi analysis and trajectory files for PDs where each PD shares `overlap` particles
     with the next one, as cone assignment does. Each NLSA image carries the code (1, prd, frame) in
-    its first three pixels so the state stacks can be decoded."""
+    its first three pixels so the state stacks can be decoded. With `extra` > 0 the first extra
+    particle sits in PD 0 beyond prd_thres_high and the others in no PD."""
     dim = params.ms_num_pixels
     n_total = sum(sizes) + 2 * len(sizes) - overlap * (len(sizes) - 1)
-    quats = rng.normal(size=(4, n_total))
+    quats = rng.normal(size=(4, n_total + extra))
     quats /= np.linalg.norm(quats, axis=0)
-    with open(params.pd_file, "wb") as f:
-        pickle.dump(dict(quats_full=quats, image_is_mirrored=rng.random(n_total) < 0.5), f)
+    members = np.empty(len(sizes), dtype=object)
 
     rows = rng.permutation(n_total)
     trajTaus, posPathAll, posPsi1All = [None] * len(sizes), [None] * len(sizes), [None] * len(sizes)
@@ -15347,16 +15347,21 @@ def _fake_trajectory_run(rng, sizes, order, overlap=0):
         IMGT = np.zeros((dim * dim, n_frames), dtype=np.float16)
         IMGT[0], IMGT[1], IMGT[2] = 1, x, np.arange(n_frames)
         tau = rng.random((n_frames, 1))
+        members[x] = np.concatenate([ind, [n_total]]) if extra and x == 0 else ind
         myio.fout1(params.get_dist_file(x), ind=ind, q=quats[:, ind])
+        myio.fout1(params.get_psi_file(x), ind=ind, posPath=posPath)
         myio.fout1(params.get_EL_file(x), IMGT=IMGT, tau=tau, posPath=posPath, PosPsi1=posPsi1,
                    tauinds=rng.integers(0, n_frames, size=4))
         trajTaus[x], posPathAll[x], posPsi1All[x] = tau, posPath, posPsi1
 
+    with open(params.pd_file, "wb") as f:
+        pickle.dump(dict(quats_full=quats, image_is_mirrored=rng.random(n_total + extra) < 0.5,
+                         image_indices_full=members, thres_ids=list(range(len(sizes)))), f)
     tauAvg = np.concatenate([((trajTaus[x] - trajTaus[x].min()) / np.ptp(trajTaus[x])).ravel() for x in order])
     myio.fout1(f"{params.traj_file}name{params.traj_name}_vars.pkl", trajTaus=trajTaus, posPsi1All=posPsi1All,
                posPathAll=posPathAll, xSelect=order, tauAvg=tauAvg)
     writeRelionS2.op(trajTaus, posPsi1All, posPathAll, order, tauAvg)
-    return n_total, posPathAll, posPsi1All
+    return n_total + extra, posPathAll, posPsi1All
 
 
 @pytest.mark.parametrize("overlap", [0, 12])
@@ -15386,25 +15391,43 @@ def test_particle_index_matches_the_state_stacks(project_stages, overlap):
         assert np.array_equal(f.particle_id.values, ind[posPathAll[x][posPsi1All[x][f.frame.values + C - 1]]])
 
 
-def test_particle_index_op_writes_the_tables(project_stages, capsys):
+def test_particle_index_op_writes_one_table(project_stages, capsys):
     params.prd_n_active = 3
     n_total, _, _ = _fake_trajectory_run(np.random.default_rng(4), [30, 24, 27], [0, 1, 2])
     capsys.readouterr()
 
     particle_index.op()
     out = os.path.join(params.out_dir, "particle_index")
-    assert sorted(os.listdir(out)) == ["frames.csv", "movies.csv", "particles.csv", "states.csv"]
-    particles = pd.read_csv(os.path.join(out, "particles.csv"))
-    states = pd.read_csv(os.path.join(out, "states.csv"))
-    assert len(particles) == n_total
-    assert (particles.pds == 1).all()
-    assert particles.frames.sum() == 27
-    assert particles.state_images.sum() == len(states) == 27
-    assert len(pd.read_csv(os.path.join(out, "movies.csv"))) == 12
-    printed = capsys.readouterr().out
-    assert "State images        27" in printed
-    for name, n_rows in [("frames.csv", 27), ("states.csv", 27), ("particles.csv", n_total), ("movies.csv", 12)]:
-        assert f"  {name:<14} {n_rows} rows" in printed
+    assert os.listdir(out) == ["particle_index.csv"]
+    table = pd.read_csv(os.path.join(out, "particle_index.csv"))
+    assert list(table.columns) == particle_index.COLUMNS
+    assert table.particle_id.is_unique and len(table) == n_total  # hard run with width_1D = 1
+    assert (table.fate == "In a state").sum() == 27
+    assert sum(len(str(v).split()) for v in table.movie_frames.dropna()) == 12  # 4 movie positions per PD
+    assert f"({n_total} rows)" in capsys.readouterr().out
+
+
+def test_particle_map_names_every_fate(project_stages):
+    params.prd_n_active = 3
+    n_all, _, _ = _fake_trajectory_run(np.random.default_rng(3), [30, 24, 27], [0, 1, 2], extra=3)
+    frames, states = particle_index.track()
+    with open(params.pd_file, "rb") as f:
+        table = particle_index.particle_map(frames, states, None, pickle.load(f))
+    counts = table.fate.value_counts().to_dict()
+    # C is 10, 8 and 9, so each PD loses C - 1 sorted particles at the start and C + 1 at the end
+    assert counts == {"In a state": 27, "Trimmed": 6, "No frame (start of psi order)": 9 + 7 + 8,
+                      "No frame (end of psi order)": 11 + 9 + 10, "Over prd_thres_high": 1, "In no PD": 2}
+    assert table.particle_id.is_unique and len(table) == n_all
+
+
+def test_particle_map_marks_pds_left_out_of_the_trajectory(project_stages):
+    params.prd_n_active = 3
+    _fake_trajectory_run(np.random.default_rng(3), [30, 24, 27], [0, 1])
+    frames, states = particle_index.track()
+    with open(params.pd_file, "rb") as f:
+        table = particle_index.particle_map(frames, states, None, pickle.load(f))
+    pd2 = table[table.prd == 2].fate.value_counts().to_dict()
+    assert pd2 == {"PD not selected": 27, "Trimmed": 2}
 
 
 def test_particle_index_follows_particles_shared_by_overlapping_pds(project_stages):
@@ -15412,8 +15435,8 @@ def test_particle_index_follows_particles_shared_by_overlapping_pds(project_stag
     params.prd_n_active = 3
     n_total, posPathAll, posPsi1All = _fake_trajectory_run(np.random.default_rng(6), [30, 24, 27], [1, 2, 0], overlap=12)
     particle_index.op(movies=False)
-    out = os.path.join(params.out_dir, "particle_index")
-    particles = pd.read_csv(os.path.join(out, "particles.csv"))
+    table = pd.read_csv(os.path.join(params.out_dir, "particle_index", "particle_index.csv"))
+    per_particle = lambda t: t.groupby("particle_id").size().reindex(range(n_total), fill_value=0).values
 
     member, framed = np.zeros(n_total, dtype=int), np.zeros(n_total, dtype=int)
     for x in range(3):
@@ -15423,11 +15446,10 @@ def test_particle_index_follows_particles_shared_by_overlapping_pds(project_stag
         member[ind] += 1
         framed[ind[posPathAll[x][posPsi1All[x][C - 1:nS - C - 1]]]] += 1
     assert (member == 2).sum() == 24  # 12 shared by PDs 0 and 1, 12 by PDs 1 and 2
-    assert np.array_equal(particles.pds.values, member)
-    assert np.array_equal(particles.frames.values, framed)
+    assert np.array_equal(per_particle(table), member)  # one row per particle and PD
+    assert np.array_equal(per_particle(table[table.fate == "In a state"]), framed)
     assert framed.max() == 2
-    assert np.array_equal(particles.state_images.values, framed)  # width_1D = 1
-    assert not os.path.isfile(os.path.join(out, "movies.csv"))
+    assert table.movie_frames.isna().all()
 
 
 def test_particle_index_op_warns_about_states_without_a_star_file(project_stages, capsys):
@@ -15439,13 +15461,14 @@ def test_particle_index_op_warns_about_states_without_a_star_file(project_stages
     assert "No state star file for states [2]" in capsys.readouterr().out
 
 
-def test_particle_summary_skips_pds_without_a_distance_file(project_stages, capsys):
+def test_particle_map_skips_pds_without_a_distance_file(project_stages, capsys):
     params.prd_n_active = 3
-    _fake_trajectory_run(np.random.default_rng(4), [30, 24, 27], [0, 1, 2])
+    n_total, _, _ = _fake_trajectory_run(np.random.default_rng(4), [30, 24, 27], [0, 1, 2])
     frames, states = particle_index.track()
     params.prd_n_active = 4
-    particles = particle_index.particle_summary(frames, states)
-    assert particles.pds.sum() == 30 + 24 + 27 + 6
+    with open(params.pd_file, "rb") as f:
+        table = particle_index.particle_map(frames, states, None, pickle.load(f))
+    assert len(table) == n_total
     assert "[3]" in capsys.readouterr().out
 
 
@@ -15491,8 +15514,7 @@ def test_particle_index_op_saves_requested_traces(project_stages, capsys):
     assert "Image 1 of state 1 back to its particle" in trace
     assert "PD 2, C = 9, 9 frames" in trace
     assert "Trace file" in capsys.readouterr().out
-    frames = pd.read_csv(os.path.join(out_dir, "frames.csv"))
-    assert {"C", "sorted", "retained", "place", "particle_id"} <= set(frames.columns)
+    assert list(pd.read_csv(os.path.join(out_dir, "particle_index.csv")).columns) == particle_index.COLUMNS
 
 
 def test_verify_counts_tracked_directions(project_stages):

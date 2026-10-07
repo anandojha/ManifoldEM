@@ -124,24 +124,78 @@ def movie_frames(frames):
     return pd.concat(rows, ignore_index=True)
 
 
-def particle_summary(frames, states, mirrored=None):
-    """One row per particle with the active PDs, NLSA frames and state images it reaches."""
-    if mirrored is None:
-        mirrored, _ = _load_pd_data()
-    n = len(mirrored)
-    pds = np.zeros(n, dtype=int)
-    absent = []
+FATES = ["In a state", "Frame without a state", "No frame (start of psi order)", "No frame (end of psi order)",
+         "Trimmed", "PD not selected", "PD not analyzed", "Over prd_thres_high", "In no PD"]
+COLUMNS = ["particle_id", "mirrored", "prd", "C", "place", "retained", "sorted", "frame", "state", "image",
+           "movie_frames", "tau", "tau_eq", "fate"]
+
+
+def _read_pos_path(prd):
+    path = params.get_psi_file(prd)
+    if not os.path.isfile(path):
+        return None
+    with h5py.File(path, "r") as f:
+        return f["posPath"][()]
+
+
+def particle_map(frames, states, movies, pd_data):
+    """Where every particle image goes, one row per particle and PD (one row per state when a frame sits in several)."""
+    traj = myio.fin1(_traj_vars_file())
+    selected = set(int(x) for x in traj["xSelect"])
+    mirrored = pd_data["image_is_mirrored"]
+    members = [np.asarray(pd_data["image_indices_full"][t]) for t in pd_data["thres_ids"]]
+    frame_info = frames.set_index(["prd", "frame"])[["tau", "tau_eq"]]
+    in_state = states.groupby(["prd", "frame"])[["state", "image"]].apply(lambda t: list(zip(t.state, t.image)))
+    in_movie = {} if movies is None else \
+        movies.groupby(["prd", "frame"]).movie_frame.apply(lambda v: " ".join(map(str, v))).to_dict()
+
+    rows, absent = [], []
     for p in range(params.prd_n_active):
-        if os.path.isfile(params.get_dist_file(p)):
-            pds += np.bincount(_read_ind(p), minlength=n)
-        else:
+        if not os.path.isfile(params.get_dist_file(p)):
             absent.append(p)
+            continue
+        ind = _read_ind(p)
+        rows += [dict(particle_id=int(r), prd=p, fate="Over prd_thres_high") for r in np.setdiff1d(members[p], ind)]
+        if p in selected:
+            pos_path, pos_psi1 = np.asarray(traj["posPathAll"][p]), np.asarray(traj["posPsi1All"][p])
+        else:
+            pos_path, pos_psi1 = _read_pos_path(p), None
+        retained = {} if pos_path is None else {int(i): j for j, i in enumerate(pos_path)}
+        sorted_of = {} if pos_psi1 is None else {int(j): k for k, j in enumerate(pos_psi1)}
+        C = None if pos_path is None else len(pos_path) // params.con_order_range
+        for i, r in enumerate(ind):
+            row = dict(particle_id=int(r), prd=p, place=i)
+            if pos_path is None:
+                rows.append({**row, "fate": "PD not analyzed"})
+                continue
+            if i not in retained:
+                rows.append({**row, "fate": "Trimmed"})
+                continue
+            row.update(C=C, retained=retained[i])
+            if p not in selected:
+                rows.append({**row, "fate": "PD not selected"})
+                continue
+            s = sorted_of[retained[i]]
+            m = s - C + 1
+            row["sorted"] = s
+            if m < 0 or m >= len(pos_path) - 2 * C:
+                rows.append({**row, "fate": f"No frame ({'start' if m < 0 else 'end'} of psi order)"})
+                continue
+            row.update(frame=m, movie_frames=in_movie.get((p, m), ""), **frame_info.loc[(p, m)].to_dict())
+            hits = in_state.get((p, m), [])
+            rows += [{**row, "state": b, "image": n, "fate": "In a state"} for b, n in hits] or \
+                    [{**row, "fate": "Frame without a state"}]
     if absent:
-        print(f"{len(absent)} active PDs have no distance file and are left out of pds {absent}")
-    ids = frames.particle_id.values
-    return pd.DataFrame(dict(particle_id=np.arange(n), mirrored=mirrored, pds=pds,
-                             frames=np.bincount(ids[ids >= 0], minlength=n),
-                             state_images=np.bincount(states.particle_id.values, minlength=n)))
+        print(f"{len(absent)} active PDs have no distance file and are left out {absent}")
+
+    in_pd = set(int(r) for m in members for r in m)
+    rows += [dict(particle_id=r, fate="In no PD") for r in range(len(mirrored)) if r not in in_pd]
+    table = pd.DataFrame(rows).reindex(columns=COLUMNS)
+    table["mirrored"] = mirrored[table.particle_id.values]
+    for col in ["prd", "C", "place", "retained", "sorted", "frame", "state", "image"]:
+        table[col] = table[col].astype("Int64")
+    table["movie_frames"] = table["movie_frames"].fillna("")
+    return table.sort_values(["particle_id", "prd", "state"], na_position="first").reset_index(drop=True)
 
 
 def missing_states(states):
@@ -265,35 +319,33 @@ def op(verify_states=False, movies=True, trace_images=(), trace_particles=(), tr
         print("No trajectory variables found. Have you run the 'trajectory' step?")
         return
 
-    mirrored, quats = _load_pd_data()
+    with open(params.pd_file, "rb") as f:
+        pd_data = pickle.load(f)
+    mirrored, quats = pd_data["image_is_mirrored"], pd_data["quats_full"]
     frames, states = track(mirrored)
-    particles = particle_summary(frames, states, mirrored)
+    movie_table = movie_frames(frames) if movies else None
+    table = particle_map(frames, states, movie_table, pd_data)
 
     out_dir = os.path.join(params.out_dir, "particle_index")
     os.makedirs(out_dir, exist_ok=True)
-    frames.to_csv(os.path.join(out_dir, "frames.csv"), index=False)
-    states.to_csv(os.path.join(out_dir, "states.csv"), index=False)
-    particles.to_csv(os.path.join(out_dir, "particles.csv"), index=False)
-    saved = [("frames.csv", len(frames)), ("states.csv", len(states)), ("particles.csv", len(particles))]
+    out_file = os.path.join(out_dir, "particle_index.csv")
+    table.to_csv(out_file, index=False)
 
-    print(f"Particles           {len(particles)}")
-    print(f"In an active PD     {int((particles.pds > 0).sum())}")
-    print(f"In several PDs      {int((particles.pds > 1).sum())}")
-    print(f"With an NLSA frame  {int((particles.frames > 0).sum())}")
-    print(f"In a state          {int((particles.state_images > 0).sum())}")
-    print(f"State images        {len(states)} in {states.state.nunique()} states")
+    print(f"Particles           {len(mirrored)}")
+    print(f"In a state          {table[table.fate == 'In a state'].particle_id.nunique()} particles, "
+          f"{len(states)} state images in {states.state.nunique()} states")
     if movies:
-        movie_table = movie_frames(frames)
-        movie_table.to_csv(os.path.join(out_dir, "movies.csv"), index=False)
-        saved.append(("movies.csv", len(movie_table)))
         print(f"2D movie positions  {len(movie_table)} ({movie_table.particle_id.nunique()} distinct particles)")
-    print(f"Output folder       {os.path.realpath(out_dir)}")
-    for name, n_rows in saved:
-        print(f"  {name:<14} {n_rows} rows")
+    print("Rows by fate")
+    counts = table.fate.value_counts()
+    for fate in FATES:
+        if fate in counts:
+            print(f"  {fate:<30} {counts[fate]}")
+    print(f"Output file         {os.path.realpath(out_file)} ({len(table)} rows)")
 
     missing = missing_states(states)
     if missing:
-        print(f"No state star file for states {missing}. Their rows in states.csv are images the trajectory step should have written.")
+        print(f"No state star file for states {missing}. Their rows in particle_index.csv are images the trajectory step should have written.")
 
     if verify_states:
         hit, _, mismatched = verify(states, quats)
