@@ -15136,11 +15136,6 @@ def test_concatenate_bin_returns_early_for_an_empty_bin(project_stages):
     assert not os.path.isfile(os.path.join(params.bin_dir, "imgsRELION_1_1_of_4.mrcs"))
 
 
-@pytest.mark.xfail(
-    reason="BUG: concatenate_bin only seeds its accumulator at istart==0 and x==0, so a "
-    "first batch with no images for the bin leaves `imgs` unbound on the next batch",
-    strict=False,
-)
 def test_concatenate_bin_survives_an_empty_first_batch(project_stages):
     params.states_per_coord = 4
     params.traj_name = "1"
@@ -15149,6 +15144,19 @@ def test_concatenate_bin_survives_an_empty_first_batch(project_stages):
     _write_group(20, 21, {0: [np.ones((2, 4, 4), dtype=np.float32)]})
     writeRelionS2.concatenate_bin(0, numberOfJobs=21, batch_size=20)
     assert os.path.isfile(os.path.join(params.bin_dir, "imgsRELION_1_1_of_4.mrcs"))
+
+
+def test_concatenate_bin_writes_a_bin_absent_from_the_last_batch(project_stages):
+    # the emptiness check used to look at the last batch only and dropped the whole state
+    params.states_per_coord = 4
+    params.traj_name = "1"
+    params.save()
+    a = np.ones((2, 4, 4), dtype=np.float32)
+    _write_group(0, 20, {0: [a]})
+    _write_group(20, 21, {})
+    writeRelionS2.concatenate_bin(0, numberOfJobs=21, batch_size=20)
+    with mrcfile.open(os.path.join(params.bin_dir, "imgsRELION_1_1_of_4.mrcs")) as mrc:
+        assert np.allclose(mrc.data, -a)
 
 
 # --------------------------------------------------------------------------------------
@@ -15241,8 +15249,18 @@ def test_particle_index_verify_defaults_off():
 def test_particle_index_dispatch_forwards_verify(monkeypatch):
     seen = {}
     monkeypatch.setattr(particle_index, "op", lambda **kw: seen.update(kw))
-    cli._funcs["particle-index"](Namespace(command="particle-index", input_file="params_demo.toml", verify=True))
-    assert seen == {"verify_states": True}
+    cli._funcs["particle-index"](Namespace(command="particle-index", input_file="params_demo.toml", verify=True,
+                                           no_movies=False))
+    assert seen == {"verify_states": True, "movies": True}
+
+
+def test_particle_index_no_movies_skips_the_movie_table(monkeypatch):
+    args = cli.get_parser().parse_args(["utility", "particle-index", "--no-movies", "params_demo.toml"])
+    assert args.no_movies is True
+    seen = {}
+    monkeypatch.setattr(particle_index, "op", lambda **kw: seen.update(kw))
+    cli._funcs["particle-index"](args)
+    assert seen == {"verify_states": False, "movies": False}
 
 
 def test_frame_particles_follows_the_nlsa_offset():
@@ -15286,11 +15304,12 @@ def test_state_frames_overlap_for_wider_paths():
     assert counts.min() == 1 and counts.max() == 2
 
 
-def _fake_trajectory_run(rng, sizes, order):
-    """Distance, psi analysis and trajectory files for disjoint PDs. Each NLSA image carries the
-    code (1, prd, frame) in its first three pixels so the state stacks can be decoded."""
+def _fake_trajectory_run(rng, sizes, order, overlap=0):
+    """Distance, psi analysis and trajectory files for PDs where each PD shares `overlap` particles
+    with the next one, as cone assignment does. Each NLSA image carries the code (1, prd, frame) in
+    its first three pixels so the state stacks can be decoded."""
     dim = params.ms_num_pixels
-    n_total = sum(sizes) + 2 * len(sizes)
+    n_total = sum(sizes) + 2 * len(sizes) - overlap * (len(sizes) - 1)
     quats = rng.normal(size=(4, n_total))
     quats /= np.linalg.norm(quats, axis=0)
     with open(params.pd_file, "wb") as f:
@@ -15301,7 +15320,7 @@ def _fake_trajectory_run(rng, sizes, order):
     start = 0
     for x, nS in enumerate(sizes):
         ind = np.sort(rows[start:start + nS + 2])  # two particles of every PD are trimmed
-        start += nS + 2
+        start += nS + 2 - overlap
         posPath = np.sort(rng.choice(nS + 2, size=nS, replace=False))
         posPsi1 = rng.permutation(nS)
         n_frames = nS - 2 * (nS // params.con_order_range)
@@ -15320,11 +15339,12 @@ def _fake_trajectory_run(rng, sizes, order):
     return n_total, posPathAll, posPsi1All
 
 
-def test_particle_index_matches_the_state_stacks(project_stages):
+@pytest.mark.parametrize("overlap", [0, 12])
+def test_particle_index_matches_the_state_stacks(project_stages, overlap):
     # writeRelionS2 writes the stacks, the tracker must name the same PD, frame and particle per image
     params.prd_n_active = 3
     order = [2, 0, 1]
-    _, posPathAll, posPsi1All = _fake_trajectory_run(np.random.default_rng(3), [30, 24, 27], order)
+    _, posPathAll, posPsi1All = _fake_trajectory_run(np.random.default_rng(3), [30, 24, 27], order, overlap)
 
     frames, states = particle_index.track()
     assert len(frames) == 10 + 8 + 9
@@ -15362,6 +15382,48 @@ def test_particle_index_op_writes_the_tables(project_stages, capsys):
     assert particles.state_images.sum() == len(states) == 27
     assert len(pd.read_csv(os.path.join(out, "movies.csv"))) == 12
     assert "State images        27" in capsys.readouterr().out
+
+
+def test_particle_index_follows_particles_shared_by_overlapping_pds(project_stages):
+    # a particle in two PDs gets a frame in each PD where it is neither trimmed nor at an end
+    params.prd_n_active = 3
+    n_total, posPathAll, posPsi1All = _fake_trajectory_run(np.random.default_rng(6), [30, 24, 27], [1, 2, 0], overlap=12)
+    particle_index.op(movies=False)
+    out = os.path.join(params.out_dir, "particle_index")
+    particles = pd.read_csv(os.path.join(out, "particles.csv"))
+
+    member, framed = np.zeros(n_total, dtype=int), np.zeros(n_total, dtype=int)
+    for x in range(3):
+        ind = myio.fin1(params.get_dist_file(x))["ind"]
+        nS = len(posPathAll[x])
+        C = nS // params.con_order_range
+        member[ind] += 1
+        framed[ind[posPathAll[x][posPsi1All[x][C - 1:nS - C - 1]]]] += 1
+    assert (member == 2).sum() == 24  # 12 shared by PDs 0 and 1, 12 by PDs 1 and 2
+    assert np.array_equal(particles.pds.values, member)
+    assert np.array_equal(particles.frames.values, framed)
+    assert framed.max() == 2
+    assert np.array_equal(particles.state_images.values, framed)  # width_1D = 1
+    assert not os.path.isfile(os.path.join(out, "movies.csv"))
+
+
+def test_particle_index_op_warns_about_states_without_a_star_file(project_stages, capsys):
+    params.prd_n_active = 3
+    _fake_trajectory_run(np.random.default_rng(4), [30, 24, 27], [0, 1, 2])
+    os.remove(os.path.join(params.bin_dir, f"EulerAngles_{params.traj_name}_2_of_{params.states_per_coord}.star"))
+    capsys.readouterr()
+    particle_index.op(movies=False)
+    assert "no state star file on disk for states [2]" in capsys.readouterr().out
+
+
+def test_particle_summary_skips_pds_without_a_distance_file(project_stages, capsys):
+    params.prd_n_active = 3
+    _fake_trajectory_run(np.random.default_rng(4), [30, 24, 27], [0, 1, 2])
+    frames, states = particle_index.track()
+    params.prd_n_active = 4
+    particles = particle_index.particle_summary(frames, states)
+    assert particles.pds.sum() == 30 + 24 + 27 + 6
+    assert "[3]" in capsys.readouterr().out
 
 
 def test_particle_index_op_needs_the_trajectory_step(project_stages, capsys):

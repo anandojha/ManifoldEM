@@ -214,7 +214,8 @@ line. Here I set a few anchors and will continue on...
 After the trajectory step, `utility particle-index` writes the particle ID (0 based row of the
 input star file) of every NLSA frame, state image and 2D movie frame to
 `output/<project_name>/particle_index/`. With `--verify` it also checks every state image against
-the angles in its state star file. No earlier step is rerun.
+the angles in its state star file. `--no-movies` skips the 2D movie table, which reads every psi
+analysis file and is the slow part for large runs. No earlier step is rerun.
 
 ```
 % manifold-cli utility particle-index --verify params_my_J310_analysis.toml
@@ -226,6 +227,10 @@ the angles in its state star file. No earlier step is rerun.
 | `states.csv` | State image | state, image, prd, frame, particle_id |
 | `movies.csv` | 2D movie position | prd, movie_frame, frame, particle_id |
 | `particles.csv` | Particle | particle_id, mirrored, pds, frames, state_images |
+
+prd, frame, sorted and particle_id count from 0. state, image and movie_frame count from 1, as in
+the state file names and the image numbers of the state star files. With `prd_assignment = "cone"`
+a particle can sit in several PDs, appears once per PD in `frames.csv`, and has `pds` above 1.
 
 
 ### Python/Jupyter interface

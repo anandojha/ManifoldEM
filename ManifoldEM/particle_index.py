@@ -8,6 +8,10 @@ so its particle ID is
 
 with ind from the distance file and posPath, PosPsi1 from psi analysis. Every array is saved by
 a finished run, so no stage has to be rerun. Requires the trajectory step.
+
+prd, frame, sorted and particle_id count from 0. state, image and movie_frame count from 1, as in
+the state file names and the image numbers of the state star files. With cone assignment a
+particle can sit in several PDs and then appears in several rows.
 """
 
 import os
@@ -54,16 +58,27 @@ def _traj_vars_file():
     return f"{params.traj_file}name{params.traj_name}_vars.pkl"
 
 
+def _state_star_file(state):
+    return os.path.join(params.bin_dir, f"EulerAngles_{params.traj_name}_{state}_of_{params.states_per_coord}.star")
+
+
 def _read_ind(prd):
     with h5py.File(params.get_dist_file(prd), "r") as f:
         return f["ind"][()]
 
 
-def track(shift=0):
-    """Frame table (one row per NLSA frame) and state table (one row per state image)."""
-    traj = myio.fin1(_traj_vars_file())
+def _load_pd_data():
+    """Mirror flag and folded quaternion of every particle."""
     with open(params.pd_file, "rb") as f:
-        mirrored = pickle.load(f)["image_is_mirrored"]
+        pd_data = pickle.load(f)
+    return pd_data["image_is_mirrored"], pd_data["quats_full"]
+
+
+def track(mirrored=None, shift=0):
+    """Frame table (one row per NLSA frame) and state table (one row per state image)."""
+    if mirrored is None:
+        mirrored, _ = _load_pd_data()
+    traj = myio.fin1(_traj_vars_file())
 
     frames = []
     chunks = [[] for _ in range(params.states_per_coord - params.width_1D + 1)]
@@ -102,33 +117,44 @@ def movie_frames(frames):
     return pd.concat(rows, ignore_index=True)
 
 
-def particle_summary(frames, states):
+def particle_summary(frames, states, mirrored=None):
     """One row per particle: active PDs holding it, NLSA frames and state images it reaches."""
-    with open(params.pd_file, "rb") as f:
-        mirrored = pickle.load(f)["image_is_mirrored"]
+    if mirrored is None:
+        mirrored, _ = _load_pd_data()
     n = len(mirrored)
     pds = np.zeros(n, dtype=int)
+    absent = []
     for p in range(params.prd_n_active):
-        pds += np.bincount(_read_ind(p), minlength=n)
+        if os.path.isfile(params.get_dist_file(p)):
+            pds += np.bincount(_read_ind(p), minlength=n)
+        else:
+            absent.append(p)
+    if absent:
+        print(f"Warning: {len(absent)} active PDs have no distance file and are left out of the pds column: {absent}")
     ids = frames.particle_id.values
     return pd.DataFrame(dict(particle_id=np.arange(n), mirrored=mirrored, pds=pds,
                              frames=np.bincount(ids[ids >= 0], minlength=n),
                              state_images=np.bincount(states.particle_id.values, minlength=n)))
 
 
-def verify(states, tol=0.01):
+def missing_states(states):
+    """States of the table without a state star file on disk."""
+    return [int(b) for b in states.state.unique() if not os.path.isfile(_state_star_file(b))]
+
+
+def verify(states, quats=None, tol=0.01):
     """Count state images whose star file direction is within `tol` degrees of the tracked particle."""
-    with open(params.pd_file, "rb") as f:
-        quats = pickle.load(f)["quats_full"]
+    if quats is None:
+        _, quats = _load_pd_data()
     hit, missing, mismatched = 0, [], []
     for b, t in states.groupby("state"):
-        star_file = os.path.join(params.bin_dir, f"EulerAngles_{params.traj_name}_{b}_of_{params.states_per_coord}.star")
+        star_file = _state_star_file(b)
         if not os.path.isfile(star_file):
-            missing.append(b)
+            missing.append(int(b))
             continue
         df = star.parse_star(star_file, 0)
         if len(df) != len(t):
-            mismatched.append(b)
+            mismatched.append(int(b))
             continue
         rot, tilt = np.deg2rad(df["rlnAngleRot"].values), np.deg2rad(df["rlnAngleTilt"].values)
         written = np.vstack((np.sin(tilt) * np.cos(rot), np.sin(tilt) * np.sin(rot), np.cos(tilt)))
@@ -139,37 +165,43 @@ def verify(states, tol=0.01):
     return hit, missing, mismatched
 
 
-def op(verify_states=False):
+def op(verify_states=False, movies=True):
     if not os.path.isfile(_traj_vars_file()):
         print("No trajectory variables found. Have you run the 'trajectory' step?")
         return
 
-    frames, states = track()
-    movies = movie_frames(frames)
-    particles = particle_summary(frames, states)
+    mirrored, quats = _load_pd_data()
+    frames, states = track(mirrored)
+    particles = particle_summary(frames, states, mirrored)
 
     out_dir = os.path.join(params.out_dir, "particle_index")
     os.makedirs(out_dir, exist_ok=True)
     frames.to_csv(os.path.join(out_dir, "frames.csv"), index=False)
     states.to_csv(os.path.join(out_dir, "states.csv"), index=False)
-    movies.to_csv(os.path.join(out_dir, "movies.csv"), index=False)
     particles.to_csv(os.path.join(out_dir, "particles.csv"), index=False)
 
     print(f"Particles           {len(particles)}")
     print(f"In an active PD     {int((particles.pds > 0).sum())}")
+    print(f"In several PDs      {int((particles.pds > 1).sum())}")
     print(f"With an NLSA frame  {int((particles.frames > 0).sum())}")
     print(f"In a state          {int((particles.state_images > 0).sum())}")
     print(f"State images        {len(states)} in {states.state.nunique()} states")
-    print(f"2D movie positions  {len(movies)} ({movies.particle_id.nunique()} distinct particles)")
+    if movies:
+        movie_table = movie_frames(frames)
+        movie_table.to_csv(os.path.join(out_dir, "movies.csv"), index=False)
+        print(f"2D movie positions  {len(movie_table)} ({movie_table.particle_id.nunique()} distinct particles)")
     print(f"Output in: {os.path.realpath(out_dir)}")
 
+    missing = missing_states(states)
+    if missing:
+        print(f"Warning: no state star file on disk for states {missing}. Their rows in states.csv describe "
+              "images the trajectory step should have written.")
+
     if verify_states:
-        hit, missing, mismatched = verify(states)
-        control, _, _ = verify(track(shift=1)[1])
+        hit, _, mismatched = verify(states, quats)
+        control, _, _ = verify(track(mirrored, shift=1)[1], quats)
         print("\nVerification against the state star files (directions within 0.01 degrees)")
         print(f"Tracked particles   {hit} of {len(states)}")
         print(f"Offset shifted by 1 {control} of {len(states)} (control)")
-        if missing:
-            print(f"States without a star file: {missing}")
         if mismatched:
             print(f"States whose star file row count differs: {mismatched}")

@@ -110,6 +110,8 @@ def get_parser():
     particle_index_parser.add_argument("input_file", type=str)
     particle_index_parser.add_argument("--verify", action="store_true",
                                        help="Check every state image against the angles in its state star file")
+    particle_index_parser.add_argument("--no-movies", action="store_true",
+                                       help="Skip the 2D movie table, which reads every psi analysis file")
 
     return parser
 
@@ -275,8 +277,8 @@ def denoise(args):
 
 
 def particle_index(args):
-    from ManifoldEM import particle_index
-    particle_index.op(verify_states=args.verify)
+    from ManifoldEM import particle_index as tracker
+    tracker.op(verify_states=args.verify, movies=not args.no_movies)
 
 
 def set_params(args):
