@@ -3,7 +3,7 @@ if not 'OMP_NUM_THREADS' in os.environ:
     os.environ['OMP_NUM_THREADS'] = '1'
 
 import sys
-from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter, Namespace
+from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter, BooleanOptionalAction, Namespace
 from typing import Union
 import ManifoldEM
 from ManifoldEM.params import params, ProjectLevel
@@ -103,6 +103,23 @@ def get_parser():
     denoise_parser.add_argument("-k", "--window_size", type=int, metavar="INT", default=5, help="Kernel/window size")
     denoise_parser.add_argument("-f", "--frame", type=int, metavar="INT", default=5, help="Beginning and ending frames affected")
     denoise_parser.add_argument("--filter", type=str, metavar="STR", default="Gaussian", help="Filter type: {Gaussian, Median}")
+
+    for step_parser in (distance_parser, manifold_analysis_parser, psi_analysis_parser, cc_parser, el_parser, traj_parser):
+        step_parser.add_argument("--tracker", action=BooleanOptionalAction, default=True,
+                                 help="Record where every particle went at this step in output/<project_name>/tracker.h5")
+
+    tracker_parser = utility_subparsers.add_parser("tracker", help="Report, fill, verify, trace and export tracker.h5",
+                                                   formatter_class=ArgumentDefaultsHelpFormatter)
+    tracker_parser.add_argument("input_file", type=str)
+    tracker_parser.add_argument("--fill", action="store_true", help="Record every blank or stale step from the files of the run")
+    tracker_parser.add_argument("--verify", action="store_true", help="Check every recorded step against the files of the run now")
+    tracker_parser.add_argument("--trace-image", type=int, nargs=2, action="append", default=[], metavar=("STATE", "IMAGE"),
+                                help="Steps from a state image back to its particle ID (both count from 1)")
+    tracker_parser.add_argument("--trace-particle", type=int, action="append", default=[], metavar="ID",
+                                help="Numbers of a particle ID at every step, one line per PD")
+    tracker_parser.add_argument("--trace-prd", type=int, action="append", default=[], metavar="PD",
+                                help="Numbers of every particle of a PD")
+    tracker_parser.add_argument("--csv", action="store_true", help="Export the mapper to output/<project_name>/particle_index.csv")
 
     return parser
 
@@ -286,6 +303,12 @@ def set_params(args):
             setattr(params, attr, new_value)
 
 
+def tracker_utility(args):
+    from ManifoldEM import tracker
+    tracker.op(fill=args.fill, verify=args.verify, trace_images=args.trace_image,
+               trace_particles=args.trace_particle, trace_prds=args.trace_prd, csv=args.csv)
+
+
 _funcs = {
     "init": init,
     "threshold": threshold,
@@ -298,7 +321,9 @@ _funcs = {
     "trajectory": compute_trajectory,
     "mrcs2mrc": mrcs2mrc,
     "denoise": denoise,
+    "tracker": tracker_utility,
 }
+
 
 
 def main():
@@ -310,8 +335,12 @@ def main():
     main_args = parser.parse_args()
 
     load_state(main_args)
+    use_tracker = getattr(main_args, "tracker", False)
     set_params(main_args)
     _funcs[main_args.command](main_args)
+    if use_tracker:
+        from ManifoldEM import tracker
+        tracker.record(main_args.command)
 
 
 if __name__ == "__main__":

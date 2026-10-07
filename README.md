@@ -210,6 +210,40 @@ line. Here I set a few anchors and will continue on...
 % manifold-cli -n 16 trajectory params_my_J310_analysis.toml &> /dev/null
 ```
 
+After each of `calc-distance`, `manifold-analysis`, `psi-analysis`, `find-ccs`, `probability-landscape` and
+`trajectory`, the tracker records where every particle image went in `output/<project_name>/tracker.h5`
+and prints the checks of that step. `--no-tracker` turns it off for one command.
+
+| Group in `tracker.h5` | Number of each particle at that step |
+|---|---|
+| `calc_distance` | place = index in `ind` of the PD |
+| `manifold_analysis` | retained = position in `posPath` (or trimmed) |
+| `psi_analysis` | sorted and frame for every topo |
+| `find_ccs` | chosen topo and sense of each PD |
+| `probability_landscape` | sorted and frame for the chosen topo, frame = sorted - C + 1 |
+| `trajectory` | state and image in the state stack |
+| `mapper` | all of the above in one row per particle and PD, with its fate |
+
+Every group keeps the particle ID (0 based star file row) and PD, the time written, the ManifoldEM
+version, the settings and the checks. A step that never ran stays blank, and a step older than the
+step before it is reported as stale.
+
+```
+% manifold-cli utility tracker params_my_J310_analysis.toml
+% manifold-cli utility tracker --fill --verify params_my_J310_analysis.toml
+% manifold-cli utility tracker --trace-image 25 219 --trace-particle 11806 --trace-prd 45 --csv params_my_J310_analysis.toml
+```
+
+| Option | Does |
+|---|---|
+| None | Lists every step as recorded, blank or stale |
+| `--fill` | Records blank or stale steps from the files of the run (older runs, steps run from the GUI) |
+| `--verify` | Checks every recorded step against the files of the run now |
+| `--trace-image STATE IMAGE` | Steps from a state image back to its particle ID |
+| `--trace-particle ID` | Numbers of a particle at every step |
+| `--trace-prd PD` | Numbers of every particle of a PD |
+| `--csv` | Exports the mapper to `output/<project_name>/particle_index.csv` |
+
 
 ### Python/Jupyter interface
 Researchers/the curious are possibly interested in various things "under the hood" in
