@@ -48,8 +48,7 @@ dependencies = [
     "fasthog",
     "h5py",
     "imageio",
-    # imported by manifoldTrimmingAuto (stage 3) and the CC modules (stage 7), so it is
-    # required for a CLI-only run, not just for the GUI
+    # imported by manifoldTrimmingAuto (stage 3) and the CC modules (stage 7), also without the GUI
     "matplotlib",
     "nptyping",
     "numba",

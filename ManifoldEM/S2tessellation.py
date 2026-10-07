@@ -218,7 +218,7 @@ def bin_and_threshold(
     n_bins = bin_centers.shape[1]
 
     if assignment == "hard":
-        # Hard partition: each point in S2 goes to its single nearest bin (disjoint groups).
+        # Hard rule. Each point in S2 goes to its single nearest bin (disjoint groups).
         neighb_bins, n_points_in_bin = collect_nearest_neighbors(bin_centers.T, S2.T)
 
         # For each bin, list all points in S2 that live in that bin
@@ -227,24 +227,18 @@ def bin_and_threshold(
             neighb_list[index].append(i)
         neighb_list = np.array([np.array(a) for a in neighb_list], dtype=object)
     elif assignment == "cone":
-        # Cone rule: each point in S2 joins every bin within cone_width_factor bin widths
-        # of it, so a point near a boundary is shared by more than one bin (overlapping groups).
-        #
-        # Which bins are KEPT is still decided by the hard nearest-neighbour count, so the set
-        # of projection directions is identical to the hard run. Only the membership of each
-        # kept bin is widened to include the shared boundary images.
+        # Cone rule. Each point in S2 joins every bin within cone_width_factor bin widths (overlapping groups).
+        # The hard count still decides which bins are kept, and only the members of each kept bin change.
         hard_bins, n_points_in_bin = collect_nearest_neighbors(bin_centers.T, S2.T)
 
         cos_thresh = np.cos(cone_width_factor * bin_width)
-        # cosine of the angle between every point and every bin center; bins and points are unit
-        # vectors already folded to the same hemisphere, so no mirror term is needed here
+        # cosine between every point and every bin center (unit vectors on the same folded hemisphere)
         cos_ang = bin_centers.T @ S2  # shape (n_bins, n_points)
         member = cos_ang >= cos_thresh
         neighb_list = np.array(
             [np.where(member[b])[0] for b in range(n_bins)], dtype=object
         )
-        # n_points_in_bin stays the hard nearest-neighbour count so thresholding keeps the same
-        # bins as the hard partition; neighb_list carries the wider cone membership.
+        # n_points_in_bin keeps the hard count for thresholding, neighb_list holds the cone members
     else:
         raise ValueError(
             f'Invalid assignment supplied ({assignment}). Valid options are ["hard", "cone"]'

@@ -1,20 +1,9 @@
-"""Particle IDs of NLSA frames, state images and 2D movie frames.
+"""Particle ID (0 based row of the input star file) of every NLSA frame, state image and 2D movie frame.
 
-The particle ID is the 0 based row of the input star file. NLSA frame m of a projection
-direction (PD) is sorted particle m + C - 1 with C = nS // con_order_range (psi_analysis._NLSA),
-so its particle ID is
-
-    ind[posPath[PosPsi1[m + C - 1]]]
-
-with ind from the distance file and posPath, PosPsi1 from psi analysis. Every array is saved by
-a finished run, so no stage has to be rerun. Requires the trajectory step.
-
-frames.csv keeps every step of this chain: sorted s = m + C - 1, retained j = PosPsi1[s],
-place i = posPath[j] and particle_id = ind[i].
-
-prd, frame, sorted, retained, place and particle_id count from 0. state, image and movie_frame
-count from 1, as in the state file names and the image numbers of the state star files. With cone
-assignment a particle can sit in several PDs and then appears in several rows.
+NLSA frame m of a PD is sorted particle s = m + C - 1 with C = nS // con_order_range (psi_analysis._NLSA).
+Its particle ID is ind[posPath[PosPsi1[s]]], read from files a finished run already saved. Needs the
+trajectory step. state, image and movie_frame count from 1 as in the state file names, all other indices
+from 0.
 """
 
 import os
@@ -136,7 +125,7 @@ def movie_frames(frames):
 
 
 def particle_summary(frames, states, mirrored=None):
-    """One row per particle: active PDs holding it, NLSA frames and state images it reaches."""
+    """One row per particle with the active PDs, NLSA frames and state images it reaches."""
     if mirrored is None:
         mirrored, _ = _load_pd_data()
     n = len(mirrored)
@@ -148,7 +137,7 @@ def particle_summary(frames, states, mirrored=None):
         else:
             absent.append(p)
     if absent:
-        print(f"Warning: {len(absent)} active PDs have no distance file and are left out of the pds column: {absent}")
+        print(f"{len(absent)} active PDs have no distance file and are left out of pds {absent}")
     ids = frames.particle_id.values
     return pd.DataFrame(dict(particle_id=np.arange(n), mirrored=mirrored, pds=pds,
                              frames=np.bincount(ids[ids >= 0], minlength=n),
@@ -194,7 +183,7 @@ def trace_image(frames, states, state, image, mirrored):
     """Steps from one state image back to its particle ID."""
     hit = states[(states.state == state) & (states.image == image)]
     if hit.empty:
-        return [f"Image {image} of state {state}: no such state image"]
+        return [f"Image {image} of state {state} does not exist"]
     x, m = int(hit.prd.iloc[0]), int(hit.frame.iloc[0])
     f = frames[(frames.prd == x) & (frames.frame == m)].iloc[0]
     C, s, j, i, r = (int(f[k]) for k in ("C", "sorted", "retained", "place", "particle_id"))
@@ -211,7 +200,7 @@ def trace_image(frames, states, state, image, mirrored):
 def trace_particle(frames, states, pid, mirrored):
     """Steps from one particle ID through every active PD that holds it."""
     if not 0 <= pid < len(mirrored):
-        return [f"Particle ID {pid}: outside the star file (0 to {len(mirrored) - 1})"]
+        return [f"Particle ID {pid} is outside the star file (0 to {len(mirrored) - 1})"]
     traj = myio.fin1(_traj_vars_file())
     selected = set(int(x) for x in traj["xSelect"])
     out = [f"Particle ID {pid} (row {pid} of {os.path.basename(params.align_param_file)}, 0 based)"
@@ -260,15 +249,14 @@ def trace_prd(frames, states, prd):
     """Every step for every NLSA frame of one PD."""
     f = frames[frames.prd == prd]
     if f.empty:
-        return [f"PD {prd}: no NLSA frames in the trajectory selection"]
-    where = {(int(m)): f"{int(b)}:{int(n)}" for b, n, m in
+        return [f"PD {prd} has no NLSA frames in the trajectory selection"]
+    where = {int(m): (int(b), int(n)) for b, n, m in
              states[states.prd == prd][["state", "image", "frame"]].itertuples(index=False)}
-    C = int(f.C.iloc[0])
-    lines = [f"PD {prd}, C = {C}, {len(f)} frames (frame m -> sorted s -> retained j -> place i -> particle ID)",
-             f"  {'m':>5} {'s':>6} {'j':>6} {'i':>6} {'Particle ID':>12}  State:image"]
+    lines = [f"PD {prd}, C = {int(f.C.iloc[0])}, {len(f)} frames",
+             f"  {'Frame':>6} {'Sorted':>7} {'Retained':>9} {'Place':>6} {'Particle ID':>12} {'State':>6} {'Image':>6}"]
     for row in f.itertuples(index=False):
-        lines.append(f"  {row.frame:>5} {row.sorted:>6} {row.retained:>6} {row.place:>6} {row.particle_id:>12}  "
-                     + where.get(int(row.frame), "none"))
+        b, n = where.get(int(row.frame), ("none", ""))
+        lines.append(f"  {row.frame:>6} {row.sorted:>7} {row.retained:>9} {row.place:>6} {row.particle_id:>12} {b:>6} {n:>6}")
     return lines
 
 
@@ -299,14 +287,13 @@ def op(verify_states=False, movies=True, trace_images=(), trace_particles=(), tr
         movie_table.to_csv(os.path.join(out_dir, "movies.csv"), index=False)
         saved.append(("movies.csv", len(movie_table)))
         print(f"2D movie positions  {len(movie_table)} ({movie_table.particle_id.nunique()} distinct particles)")
-    print(f"Output in: {os.path.realpath(out_dir)}")
+    print(f"Output folder       {os.path.realpath(out_dir)}")
     for name, n_rows in saved:
         print(f"  {name:<14} {n_rows} rows")
 
     missing = missing_states(states)
     if missing:
-        print(f"Warning: no state star file on disk for states {missing}. Their rows in states.csv describe "
-              "images the trajectory step should have written.")
+        print(f"No state star file for states {missing}. Their rows in states.csv are images the trajectory step should have written.")
 
     if verify_states:
         hit, _, mismatched = verify(states, quats)
@@ -315,7 +302,7 @@ def op(verify_states=False, movies=True, trace_images=(), trace_particles=(), tr
         print(f"Tracked particles   {hit} of {len(states)}")
         print(f"Offset shifted by 1 {control} of {len(states)} (control)")
         if mismatched:
-            print(f"States whose star file row count differs: {mismatched}")
+            print(f"States with a different row count in their star file {mismatched}")
 
     lines = []
     for state, image in trace_images:
@@ -329,5 +316,4 @@ def op(verify_states=False, movies=True, trace_images=(), trace_particles=(), tr
         with open(trace_file, "w") as f:
             f.write("\n".join(lines[1:]) + "\n")
         print("\n".join(lines))
-        print(f"\nTrace saved in: {os.path.realpath(trace_file)}")
-        print(f"  trace.txt      {len(lines) - 1} lines")
+        print(f"\nTrace file          {os.path.realpath(trace_file)} ({len(lines) - 1} lines)")

@@ -15361,7 +15361,7 @@ def _fake_trajectory_run(rng, sizes, order, overlap=0):
 
 @pytest.mark.parametrize("overlap", [0, 12])
 def test_particle_index_matches_the_state_stacks(project_stages, overlap):
-    # writeRelionS2 writes the stacks, the tracker must name the same PD, frame and particle per image
+    # the tracker must name the PD, frame and particle of every image writeRelionS2 wrote
     params.prd_n_active = 3
     order = [2, 0, 1]
     _, posPathAll, posPsi1All = _fake_trajectory_run(np.random.default_rng(3), [30, 24, 27], order, overlap)
@@ -15436,7 +15436,7 @@ def test_particle_index_op_warns_about_states_without_a_star_file(project_stages
     os.remove(os.path.join(params.bin_dir, f"EulerAngles_{params.traj_name}_2_of_{params.states_per_coord}.star"))
     capsys.readouterr()
     particle_index.op(movies=False)
-    assert "no state star file on disk for states [2]" in capsys.readouterr().out
+    assert "No state star file for states [2]" in capsys.readouterr().out
 
 
 def test_particle_summary_skips_pds_without_a_distance_file(project_stages, capsys):
@@ -15490,7 +15490,7 @@ def test_particle_index_op_saves_requested_traces(project_stages, capsys):
     trace = open(os.path.join(out_dir, "trace.txt")).read()
     assert "Image 1 of state 1 back to its particle" in trace
     assert "PD 2, C = 9, 9 frames" in trace
-    assert "Trace saved in" in capsys.readouterr().out
+    assert "Trace file" in capsys.readouterr().out
     frames = pd.read_csv(os.path.join(out_dir, "frames.csv"))
     assert {"C", "sorted", "retained", "place", "particle_id"} <= set(frames.columns)
 
