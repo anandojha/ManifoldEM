@@ -56,6 +56,7 @@ from ManifoldEM import (
     manifoldTrimmingAuto,
     myio,
     nlsa_movie,
+    particle_index,
     probability_landscape,
     quaternion,
     star,
@@ -12623,12 +12624,12 @@ def test_calc_probabilities_is_not_accepted_by_the_parser():
         cli.get_parser().parse_args(["calc-probabilities", "params_x.toml"])
 
 
-@pytest.mark.parametrize("name", PIPELINE_NAMES + ["utility", "mrcs2mrc", "denoise"])
+@pytest.mark.parametrize("name", PIPELINE_NAMES + ["utility", "mrcs2mrc", "denoise", "particle-index"])
 def test_subparser_uses_defaults_help_formatter(name):
     assert _sub(name).formatter_class is ArgumentDefaultsHelpFormatter
 
 
-@pytest.mark.parametrize("name", PIPELINE_NAMES + ["mrcs2mrc", "denoise"])
+@pytest.mark.parametrize("name", PIPELINE_NAMES + ["mrcs2mrc", "denoise", "particle-index"])
 def test_subparser_help_exits_zero(name, capsys):
     with pytest.raises(SystemExit) as exc:
         _sub(name).parse_args(["-h"])
@@ -13019,15 +13020,15 @@ def test_parse_prd_list_returns_plain_ints():
 # utility subcommands
 # ---------------------------------------------------------------------------------------------
 
-@pytest.mark.parametrize("name", ["mrcs2mrc", "denoise"])
+@pytest.mark.parametrize("name", ["mrcs2mrc", "denoise", "particle-index"])
 def test_utility_subcommand_registered(name):
     top = _subaction(cli.get_parser())
     assert name in _subaction(top.choices["utility"]).choices
 
 
-def test_utility_subcommand_names_are_exactly_two():
+def test_utility_subcommand_names_are_exactly_three():
     top = _subaction(cli.get_parser())
-    assert list(_subaction(top.choices["utility"]).choices) == ["mrcs2mrc", "denoise"]
+    assert list(_subaction(top.choices["utility"]).choices) == ["mrcs2mrc", "denoise", "particle-index"]
 
 
 def test_mrcs2mrc_parses():
@@ -13251,7 +13252,7 @@ def test_load_state_restores_project_level_enum(workdir, monkeypatch):
 # load_state: the dead path_width branch
 # ---------------------------------------------------------------------------------------------
 
-@pytest.mark.parametrize("name", PIPELINE_NAMES + ["mrcs2mrc", "denoise"])
+@pytest.mark.parametrize("name", PIPELINE_NAMES + ["mrcs2mrc", "denoise", "particle-index"])
 def test_no_subcommand_produces_path_width(name):
     # load_state has a `hasattr(args, "path_width")` branch, but no parser defines it: dead code
     assert "path_width" not in _dests(_sub(name))
@@ -13357,6 +13358,7 @@ def test_set_params_list_param_accepts_bracketed_text():
     ["trajectory", "params_demo.toml"],
     ["utility", "mrcs2mrc", "params_demo.toml"],
     ["utility", "denoise", "params_demo.toml"],
+    ["utility", "particle-index", "--verify", "params_demo.toml"],
 ])
 def test_set_params_survives_every_subcommand(argv, capsys):
     # every attribute a parser can emit must either be absent from params or be an Annotated
@@ -13377,7 +13379,7 @@ def test_set_params_applies_init_project_name():
 # ---------------------------------------------------------------------------------------------
 
 def test_funcs_table_keys():
-    assert set(cli._funcs) == set(PIPELINE_NAMES) | {"mrcs2mrc", "denoise"}
+    assert set(cli._funcs) == set(PIPELINE_NAMES) | {"mrcs2mrc", "denoise", "particle-index"}
 
 
 @pytest.mark.parametrize("name", PIPELINE_NAMES)
@@ -15218,3 +15220,171 @@ def test_find_ccs_writes_psinums_when_every_node_is_an_anchor(project_stages):
     # the second reaction coordinate row is left untouched by the all-anchors shortcut
     assert np.all(data["psinums"][1, :] == 0)
     assert np.all(data["senses"][1, :] == 0)
+
+
+# ============================================================================
+# particle_index
+# ============================================================================
+
+def test_particle_index_parses_with_verify():
+    args = cli.get_parser().parse_args(["utility", "particle-index", "--verify", "params_demo.toml"])
+    assert args.command == "particle-index"
+    assert args.input_file == "params_demo.toml"
+    assert args.verify is True
+
+
+def test_particle_index_verify_defaults_off():
+    args = cli.get_parser().parse_args(["utility", "particle-index", "params_demo.toml"])
+    assert args.verify is False
+
+
+def test_particle_index_dispatch_forwards_verify(monkeypatch):
+    seen = {}
+    monkeypatch.setattr(particle_index, "op", lambda **kw: seen.update(kw))
+    cli._funcs["particle-index"](Namespace(command="particle-index", input_file="params_demo.toml", verify=True))
+    assert seen == {"verify_states": True}
+
+
+def test_frame_particles_follows_the_nlsa_offset():
+    rng = np.random.default_rng(0)
+    ind = rng.choice(1000, size=14, replace=False)
+    posPath = np.sort(rng.choice(14, size=12, replace=False))
+    posPsi1 = rng.permutation(12)
+    ids = particle_index.frame_particles(ind, posPath, posPsi1, con_order_range=4)
+    C = 12 // 4
+    assert len(ids) == 12 - 2 * C
+    for m in range(len(ids)):
+        assert ids[m] == ind[posPath[posPsi1[m + C - 1]]]
+
+
+def test_frame_particles_skip_the_ends_of_the_sorted_order():
+    # the first C - 1 and the last C + 1 sorted particles get no frame (C = 3)
+    ids = particle_index.frame_particles(np.arange(12), np.arange(12), np.arange(12), con_order_range=4)
+    assert ids.tolist() == [2, 3, 4, 5, 6, 7]
+
+
+def test_frame_particles_shift_marks_frames_outside_the_pd():
+    ids = particle_index.frame_particles(np.arange(12), np.arange(12), np.arange(12), 4, shift=-3)
+    assert ids.tolist() == [-1, 0, 1, 2, 3, 4]
+
+
+def test_frame_particles_rejects_a_pd_without_frames():
+    with pytest.raises(ValueError):
+        particle_index.frame_particles(np.arange(30), np.arange(30), np.arange(30), 50)
+
+
+def test_state_frames_partition_the_frames_for_width_one():
+    tau_eq = np.array([0.0, 0.1, 0.25, 0.49, 0.5, 0.74, 0.75, 0.99, 1.0])
+    bins = particle_index.state_frames(tau_eq, 4, 1)
+    assert [b.tolist() for b in bins] == [[0, 1], [2, 3], [4, 5], [6, 7, 8]]
+
+
+def test_state_frames_overlap_for_wider_paths():
+    bins = particle_index.state_frames(np.linspace(0, 1, 21), 4, 2)
+    assert len(bins) == 3
+    counts = np.bincount(np.concatenate(bins), minlength=21)
+    assert counts.min() == 1 and counts.max() == 2
+
+
+def _fake_trajectory_run(rng, sizes, order):
+    """Distance, psi analysis and trajectory files for disjoint PDs. Each NLSA image carries the
+    code (1, prd, frame) in its first three pixels so the state stacks can be decoded."""
+    dim = params.ms_num_pixels
+    n_total = sum(sizes) + 2 * len(sizes)
+    quats = rng.normal(size=(4, n_total))
+    quats /= np.linalg.norm(quats, axis=0)
+    with open(params.pd_file, "wb") as f:
+        pickle.dump(dict(quats_full=quats, image_is_mirrored=rng.random(n_total) < 0.5), f)
+
+    rows = rng.permutation(n_total)
+    trajTaus, posPathAll, posPsi1All = [None] * len(sizes), [None] * len(sizes), [None] * len(sizes)
+    start = 0
+    for x, nS in enumerate(sizes):
+        ind = np.sort(rows[start:start + nS + 2])  # two particles of every PD are trimmed
+        start += nS + 2
+        posPath = np.sort(rng.choice(nS + 2, size=nS, replace=False))
+        posPsi1 = rng.permutation(nS)
+        n_frames = nS - 2 * (nS // params.con_order_range)
+        IMGT = np.zeros((dim * dim, n_frames), dtype=np.float16)
+        IMGT[0], IMGT[1], IMGT[2] = 1, x, np.arange(n_frames)
+        tau = rng.random((n_frames, 1))
+        myio.fout1(params.get_dist_file(x), ind=ind, q=quats[:, ind])
+        myio.fout1(params.get_EL_file(x), IMGT=IMGT, tau=tau, posPath=posPath, PosPsi1=posPsi1,
+                   tauinds=rng.integers(0, n_frames, size=4))
+        trajTaus[x], posPathAll[x], posPsi1All[x] = tau, posPath, posPsi1
+
+    tauAvg = np.concatenate([((trajTaus[x] - trajTaus[x].min()) / np.ptp(trajTaus[x])).ravel() for x in order])
+    myio.fout1(f"{params.traj_file}name{params.traj_name}_vars.pkl", trajTaus=trajTaus, posPsi1All=posPsi1All,
+               posPathAll=posPathAll, xSelect=order, tauAvg=tauAvg)
+    writeRelionS2.op(trajTaus, posPsi1All, posPathAll, order, tauAvg)
+    return n_total, posPathAll, posPsi1All
+
+
+def test_particle_index_matches_the_state_stacks(project_stages):
+    # writeRelionS2 writes the stacks, the tracker must name the same PD, frame and particle per image
+    params.prd_n_active = 3
+    order = [2, 0, 1]
+    _, posPathAll, posPsi1All = _fake_trajectory_run(np.random.default_rng(3), [30, 24, 27], order)
+
+    frames, states = particle_index.track()
+    assert len(frames) == 10 + 8 + 9
+    assert len(states) == len(frames)  # width_1D = 1 puts every frame in one state
+    for b, t in states.groupby("state"):
+        stack = mrcfile.read(os.path.join(params.bin_dir, f"imgsRELION_{params.traj_name}_{b}_of_{params.states_per_coord}.mrcs"))
+        stack = stack.reshape(-1, params.ms_num_pixels, params.ms_num_pixels)
+        assert len(stack) == len(t)
+        # undo the transpose and the sign flip of the writer, then read the (1, prd, frame) code
+        code = -stack.transpose(0, 2, 1).reshape(len(stack), -1)[:, :3]
+        assert np.array_equal(np.rint(code[:, 1] / code[:, 0]), t.prd.values)
+        assert np.array_equal(np.rint(code[:, 2] / code[:, 0]), t.frame.values)
+        assert t.image.tolist() == list(range(1, len(t) + 1))
+
+    for x in order:
+        ind = myio.fin1(params.get_dist_file(x))["ind"]
+        C = len(posPathAll[x]) // params.con_order_range
+        f = frames[frames.prd == x]
+        assert np.array_equal(f.particle_id.values, ind[posPathAll[x][posPsi1All[x][f.frame.values + C - 1]]])
+
+
+def test_particle_index_op_writes_the_tables(project_stages, capsys):
+    params.prd_n_active = 3
+    n_total, _, _ = _fake_trajectory_run(np.random.default_rng(4), [30, 24, 27], [0, 1, 2])
+    capsys.readouterr()
+
+    particle_index.op()
+    out = os.path.join(params.out_dir, "particle_index")
+    assert sorted(os.listdir(out)) == ["frames.csv", "movies.csv", "particles.csv", "states.csv"]
+    particles = pd.read_csv(os.path.join(out, "particles.csv"))
+    states = pd.read_csv(os.path.join(out, "states.csv"))
+    assert len(particles) == n_total
+    assert (particles.pds == 1).all()
+    assert particles.frames.sum() == 27
+    assert particles.state_images.sum() == len(states) == 27
+    assert len(pd.read_csv(os.path.join(out, "movies.csv"))) == 12
+    assert "State images        27" in capsys.readouterr().out
+
+
+def test_particle_index_op_needs_the_trajectory_step(project_stages, capsys):
+    particle_index.op()
+    assert "trajectory" in capsys.readouterr().out
+    assert not os.path.isdir(os.path.join(params.out_dir, "particle_index"))
+
+
+def test_verify_counts_tracked_directions(project_stages):
+    rng = np.random.default_rng(5)
+    quats = rng.normal(size=(4, 20))
+    quats /= np.linalg.norm(quats, axis=0)
+    with open(params.pd_file, "wb") as f:
+        pickle.dump(dict(quats_full=quats, image_is_mirrored=np.zeros(20, dtype=bool)), f)
+    states = pd.DataFrame(dict(state=[1, 1, 1, 2, 2], image=[1, 2, 3, 1, 2], prd=0, frame=[0, 1, 2, 3, 4],
+                               particle_id=[4, 7, 1, 9, 12]))
+    for b, t in states.groupby("state"):
+        v = quaternion.quaternion_to_S2(quats[:, t.particle_id.values])
+        df = pd.DataFrame(dict(phi=np.degrees(np.arctan2(v[1], v[0])) % 360, theta=np.degrees(np.arccos(v[2])), psi=0.0))
+        star.write_star(os.path.join(params.bin_dir, f"EulerAngles_{params.traj_name}_{b}_of_{params.states_per_coord}.star"),
+                        "stack.mrcs", df)
+
+    assert particle_index.verify(states) == (5, [], [])
+    assert particle_index.verify(states.assign(particle_id=[7, 1, 9, 12, 4]))[0] == 0
+    extra = pd.DataFrame(dict(state=[2, 3], image=[3, 1], prd=0, frame=[5, 6], particle_id=[0, 2]))
+    assert particle_index.verify(pd.concat([states, extra], ignore_index=True)) == (3, [3], [2])

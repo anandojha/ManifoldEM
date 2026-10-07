@@ -104,6 +104,13 @@ def get_parser():
     denoise_parser.add_argument("-f", "--frame", type=int, metavar="INT", default=5, help="Beginning and ending frames affected")
     denoise_parser.add_argument("--filter", type=str, metavar="STR", default="Gaussian", help="Filter type: {Gaussian, Median}")
 
+    particle_index_parser = utility_subparsers.add_parser("particle-index",
+                                                          help="Write the particle ID (star file row) of every NLSA frame, state image and 2D movie frame",
+                                                          formatter_class=ArgumentDefaultsHelpFormatter)
+    particle_index_parser.add_argument("input_file", type=str)
+    particle_index_parser.add_argument("--verify", action="store_true",
+                                       help="Check every state image against the angles in its state star file")
+
     return parser
 
 
@@ -267,6 +274,11 @@ def denoise(args):
     print(f"Output in: {os.path.realpath(params.postproc_denoise_dir)}")
 
 
+def particle_index(args):
+    from ManifoldEM import particle_index
+    particle_index.op(verify_states=args.verify)
+
+
 def set_params(args):
     for attr in dir(args):
         if attr.startswith('_') or not hasattr(params, attr):
@@ -298,6 +310,7 @@ _funcs = {
     "trajectory": compute_trajectory,
     "mrcs2mrc": mrcs2mrc,
     "denoise": denoise,
+    "particle-index": particle_index,
 }
 
 

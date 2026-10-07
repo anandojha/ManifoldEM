@@ -211,6 +211,22 @@ line. Here I set a few anchors and will continue on...
 % manifold-cli -n 16 trajectory params_my_J310_analysis.toml &> /dev/null
 ```
 
+After the trajectory step, `utility particle-index` writes the particle ID (0 based row of the
+input star file) of every NLSA frame, state image and 2D movie frame to
+`output/<project_name>/particle_index/`. With `--verify` it also checks every state image against
+the angles in its state star file. No earlier step is rerun.
+
+```
+% manifold-cli utility particle-index --verify params_my_J310_analysis.toml
+```
+
+| File | One row per | Columns |
+|---|---|---|
+| `frames.csv` | NLSA frame | prd, frame, sorted, particle_id, mirrored, tau, tau_eq |
+| `states.csv` | State image | state, image, prd, frame, particle_id |
+| `movies.csv` | 2D movie position | prd, movie_frame, frame, particle_id |
+| `particles.csv` | Particle | particle_id, mirrored, pds, frames, state_images |
+
 
 ### Python/Jupyter interface
 Researchers/the curious are possibly interested in various things "under the hood" in
