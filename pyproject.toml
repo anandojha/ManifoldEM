@@ -48,6 +48,8 @@ dependencies = [
     "fasthog",
     "h5py",
     "imageio",
+    # imported by manifoldTrimmingAuto (stage 3) and the CC modules (stage 7), also without the GUI
+    "matplotlib",
     "nptyping",
     "numba",
     "numpy",
@@ -67,7 +69,6 @@ dependencies = [
 gui = [
     "configobj",
     "fabric",
-    "matplotlib",
     "mayavi@https://github.com/enthought/mayavi/zipball/main",
     "PyQt5",
     "vtk",

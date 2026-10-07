@@ -80,6 +80,7 @@ def extract_traj_data_by_prd(prds_filename, trajTaus, tauAvg, posPathAll, posPsi
 
 
 def concatenate_bin(i_bin, numberOfJobs, batch_size):
+    imgs = None  # set by the first batch holding images for this bin
     for istart in range(0, numberOfJobs, batch_size):
         numNext = min(numberOfJobs, istart + batch_size)
 
@@ -96,7 +97,7 @@ def concatenate_bin(i_bin, numberOfJobs, batch_size):
             if y >= len(imgss_bin_g[i_bin]):
                 continue
 
-            if istart == 0 and x == 0:
+            if imgs is None:
                 imgs = copy.deepcopy(imgss_bin_g[i_bin][y])
                 phi = copy.deepcopy(phis_bin_g[i_bin][y])
                 theta = copy.deepcopy(thetas_bin_g[i_bin][y])
@@ -108,7 +109,7 @@ def concatenate_bin(i_bin, numberOfJobs, batch_size):
                 theta = np.concatenate([theta, thetas_bin_g[i_bin][y]])
                 psi = np.concatenate([psi, psis_bin_g[i_bin][y]])
 
-    if not len(imgss_bin_g[i_bin]):
+    if imgs is None:
         return
 
     traj_file_rel = 'imgsRELION_{}_{}_of_{}.mrcs'.format(params.traj_name, i_bin + 1, params.states_per_coord)
