@@ -15401,7 +15401,10 @@ def test_particle_index_op_writes_the_tables(project_stages, capsys):
     assert particles.frames.sum() == 27
     assert particles.state_images.sum() == len(states) == 27
     assert len(pd.read_csv(os.path.join(out, "movies.csv"))) == 12
-    assert "State images        27" in capsys.readouterr().out
+    printed = capsys.readouterr().out
+    assert "State images        27" in printed
+    for name, n_rows in [("frames.csv", 27), ("states.csv", 27), ("particles.csv", n_total), ("movies.csv", 12)]:
+        assert f"  {name:<14} {n_rows} rows" in printed
 
 
 def test_particle_index_follows_particles_shared_by_overlapping_pds(project_stages):

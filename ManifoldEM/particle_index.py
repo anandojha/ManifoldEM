@@ -286,6 +286,7 @@ def op(verify_states=False, movies=True, trace_images=(), trace_particles=(), tr
     frames.to_csv(os.path.join(out_dir, "frames.csv"), index=False)
     states.to_csv(os.path.join(out_dir, "states.csv"), index=False)
     particles.to_csv(os.path.join(out_dir, "particles.csv"), index=False)
+    saved = [("frames.csv", len(frames)), ("states.csv", len(states)), ("particles.csv", len(particles))]
 
     print(f"Particles           {len(particles)}")
     print(f"In an active PD     {int((particles.pds > 0).sum())}")
@@ -296,8 +297,11 @@ def op(verify_states=False, movies=True, trace_images=(), trace_particles=(), tr
     if movies:
         movie_table = movie_frames(frames)
         movie_table.to_csv(os.path.join(out_dir, "movies.csv"), index=False)
+        saved.append(("movies.csv", len(movie_table)))
         print(f"2D movie positions  {len(movie_table)} ({movie_table.particle_id.nunique()} distinct particles)")
     print(f"Output in: {os.path.realpath(out_dir)}")
+    for name, n_rows in saved:
+        print(f"  {name:<14} {n_rows} rows")
 
     missing = missing_states(states)
     if missing:
@@ -326,3 +330,4 @@ def op(verify_states=False, movies=True, trace_images=(), trace_particles=(), tr
             f.write("\n".join(lines[1:]) + "\n")
         print("\n".join(lines))
         print(f"\nTrace saved in: {os.path.realpath(trace_file)}")
+        print(f"  trace.txt      {len(lines) - 1} lines")
