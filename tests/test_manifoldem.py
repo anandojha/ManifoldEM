@@ -5,7 +5,7 @@ Single-file suite, mirroring the PySTARC convention. Run from the repo root so t
 
     cd <repo> && python -m pytest tests/test_manifoldem.py -q
 
-Tests marked xfail document defects found while writing the suite; the reason string
+Tests marked xfail document defects found while writing the suite. The reason string
 names the defect. They are non-strict, so a fix turns them green rather than red.
 """
 
@@ -345,7 +345,7 @@ def test_fergusonE_logSumWij_is_monotone_increasing_in_epsilon():
 
 
 def test_fergusonE_mutates_the_caller_a0_in_place():
-    """`a0 *= 0.5` inside the loop writes through to the caller's array -- callers must
+    """`a0 *= 0.5` inside the loop writes through to the caller's array, callers must
     hand over a throwaway."""
     D, logEps = _ferguson_inputs()
     a0 = np.ones(4)
@@ -415,15 +415,15 @@ def test_annular_mask_annulus_is_the_difference_of_two_discs():
 
 def test_annular_mask_outer_radius_is_exclusive():
     """rSq < bSq, so the pixel sitting exactly at radius b is NOT included."""
-    # row centre is index N/2 - 1 = 3, column centre is index M/2 = 4 for N = M = 8
+    # row center is index N/2 - 1 = 3, column center is index M/2 = 4 for N = M = 8
     mask = annular_mask(0.0, 2.0, 8, 8)
     assert mask[3, 4 + 2] == 0.0
     assert mask[3, 4 + 1] == 1.0
 
 
 @pytest.mark.parametrize("N", [6, 8, 12])
-@pytest.mark.xfail(reason="BUG: row centre is N/2-1 but column centre is M/2, so the mask is "
-                   "off-centre by one row (MATLAB 1-index leaked into the xx loop only)",
+@pytest.mark.xfail(reason="Bug. row center is N/2-1 but column center is M/2, so the mask is "
+                   "off-center by one row (MATLAB 1-index leaked into the xx loop only)",
                    strict=False)
 def test_annular_mask_is_symmetric_under_transpose(N):
     """A disc mask on a square grid has to be its own transpose."""
@@ -474,7 +474,7 @@ def test_get_wiener_denominator_is_never_below_inverse_snr():
 
 
 def test_get_wiener_matches_its_own_index_arithmetic():
-    """Documents what the routine actually sums: CTF1[ConOrder - ii + i]**2."""
+    """Documents what the routine actually sums. CTF1[ConOrder - ii + i]**2."""
     CTF = _ctf_stack()
     posPath = np.arange(CTF.shape[0])
     con_order, num, snr = 3, 8, 5.0
@@ -497,7 +497,7 @@ def test_get_wiener_respects_posPath_reordering():
     assert np.allclose(CTF1, CTF[::-1])
 
 
-@pytest.mark.xfail(reason="BUG: off-by-one -- _NLSA deconvolves image index "
+@pytest.mark.xfail(reason="Bug. off-by-one, _NLSA deconvolves image index "
                    "(ConOrder - ii + i - 1) but get_wiener builds the denominator from "
                    "(ConOrder - ii + i), so CTF slot 0 is never used",
                    strict=False)
@@ -534,7 +534,7 @@ def test_euler_rot_matrix_identity_at_zero():
 
 @pytest.mark.parametrize("seed", [0, 1, 2])
 def test_euler_rot_matrix_matches_scipy_clockwise_extrinsic_zyz(seed):
-    """SPIDER angles are clockwise extrinsic zyz -- negate before handing to scipy."""
+    """SPIDER angles are clockwise extrinsic zyz, negate before handing to scipy."""
     rng = np.random.default_rng(seed)
     e = rng.uniform(-np.pi, np.pi, size=(20, 3))
 
@@ -546,7 +546,7 @@ def test_euler_rot_matrix_matches_scipy_clockwise_extrinsic_zyz(seed):
 
 @pytest.mark.parametrize("phi", [0.0, 0.5, -1.3, np.pi])
 def test_euler_rot_matrix_pure_phi_is_a_z_rotation(phi):
-    """With Theta = Psi = 0 only the leading z rotation survives; the sign is clockwise."""
+    """With Theta = Psi = 0 only the leading z rotation survives. The sign is clockwise."""
     R = euler_rot_matrix_3D_spider(phi, 0.0, 0.0)
     expected = np.array([[np.cos(phi), np.sin(phi), 0.0],
                          [-np.sin(phi), np.cos(phi), 0.0],
@@ -605,7 +605,7 @@ def test_rotate_volume_euler_preserves_shape_and_dtype():
 
 @pytest.mark.parametrize("sym", [[0.4, 0.2, -0.3], [1.0, 0.5, 0.0], [-2.0, 1.1, 0.6]])
 def test_rotate_volume_euler_matches_a_direct_affine_transform(sym):
-    """`sym` is consumed REVERSED: euler_rot_matrix_3D_spider(sym[2], sym[1], sym[0])."""
+    """`sym` is consumed REVERSED. euler_rot_matrix_3D_spider(sym[2], sym[1], sym[0])."""
     vol = _blob_volume()
     dims = vol.shape
     rotmat = euler_rot_matrix_3D_spider(sym[2], sym[1], sym[0])
@@ -627,9 +627,9 @@ def test_rotate_volume_euler_of_a_constant_volume_is_constant():
 # --------------------------------------------------------------------------------------
 @pytest.mark.parametrize("pd", [[0.0, 0.0, 1.0], [1.0, 0.0, 0.0], [1.0, 1.0, 1.0],
                                 [0.5, -0.3, 0.8], [-0.4, 0.2, 0.9], [2.0, 1.0, 3.0]])
-@pytest.mark.xfail(reason="BUG: q2Spider starts its Levenberg-Marquardt solve at a=[0,0,0], "
+@pytest.mark.xfail(reason="Bug. q2Spider starts its Levenberg-Marquardt solve at a=[0,0,0], "
                    "where the Jacobian row of the first imaginary residual component is "
-                   "identically zero; whether the solver escapes that saddle turns on 1-ulp "
+                   "identically zero. Whether the solver escapes that saddle turns on 1-ulp "
                    "differences in the numba-compiled residual, so ~5%% of PROCESSES return "
                    "(0,0,0) for some direction.  Reproducible by varying PYTHONHASHSEED.",
                    strict=False)
@@ -646,8 +646,8 @@ def test_get_euler_from_PD_round_trips_through_S2(pd):
 @pytest.mark.parametrize("pd", [[0.0, 0.0, 1.0], [1.0, 0.0, 0.0], [1.0, 1.0, 1.0],
                                 [0.5, -0.3, 0.8], [-0.4, 0.2, 0.9], [2.0, 1.0, 3.0]])
 def test_get_euler_from_PD_stays_in_the_valid_angle_ranges(pd):
-    """Deterministic companion to the (unreliable) round trip above: whichever branch the
-    optimiser lands in, the returned triple has to be a finite Euler triple with a polar
+    """Deterministic companion to the (unreliable) round trip above. Whichever branch the
+    optimizer lands in, the returned triple has to be a finite Euler triple with a polar
     angle in [0, pi] and the conventional zero psi."""
     pd = np.array(pd, dtype=float)
     pd /= np.linalg.norm(pd)
@@ -679,7 +679,7 @@ def test_get_euler_from_PD_returns_three_angles():
 
 @pytest.mark.parametrize("pd", [[0.0, 1.0, 0.0], [0.0, -1.0, 0.0], [0.0, 0.7071, 0.7071],
                                 [0.0, -0.6, 0.8]])
-@pytest.mark.xfail(reason="BUG: for PD[0] == 0 the q2Spider Levenberg-Marquardt solve starts "
+@pytest.mark.xfail(reason="Bug. for PD[0] == 0 the q2Spider Levenberg-Marquardt solve starts "
                    "on a zero-Jacobian saddle and silently returns (0,0,0), i.e. the +z "
                    "direction, instead of the requested direction",
                    strict=False)
@@ -692,7 +692,7 @@ def test_get_euler_from_PD_handles_the_x_equals_zero_great_circle(pd):
     assert np.allclose(pd, back, atol=1e-6)
 
 
-@pytest.mark.xfail(reason="BUG: the south pole gives Qr = [0,0,0,0]; normalising it produces "
+@pytest.mark.xfail(reason="Bug. The south pole gives Qr = [0,0,0,0]. Normalizing it produces "
                    "NaN and least_squares raises 'Residuals are not finite'",
                    strict=False)
 def test_get_euler_from_PD_handles_the_south_pole():
@@ -810,7 +810,7 @@ def test_makeMovie_inverts_contrast(params_sandbox_core_util):
     assert gray[np.unravel_index(np.argmin(flat_in), flat_in.shape)] == 255
 
 
-@pytest.mark.xfail(reason="BUG: window size is int(sqrt(max(IMG1.shape))) so a stack with "
+@pytest.mark.xfail(reason="Bug. Window size is int(sqrt(max(IMG1.shape))) so a stack with "
                    "more frames than pixels picks up the frame count as the box width",
                    strict=False)
 def test_makeMovie_takes_the_window_size_from_the_pixel_axis(params_sandbox_core_util):
@@ -924,7 +924,7 @@ def test_hist_match_shape_and_dtype(src_shape, tpl_shape):
 
 @pytest.mark.parametrize("n_src,n_tpl", [(64, 30), (25, 25), (16, 100), (49, 7)])
 def test_hist_match_preserves_rank_order(n_src, n_tpl):
-    """A histogram match is a monotone (but not strictly monotone -- a coarse template
+    """A histogram match is a monotone (but not strictly monotone, a coarse template
     creates ties) remap, so sorting by the source must leave the output non-decreasing."""
     rng = np.random.default_rng(19)
     src = rng.uniform(size=n_src)
@@ -1002,7 +1002,7 @@ def test_hist_match_handles_a_template_with_repeats():
 # --------------------------------------------------------------------------------------
 @pytest.mark.parametrize("shape", [(10, 10), (4, 9), (25, )])
 def test_histeq_returns_a_flat_array(shape):
-    """Note histeq does NOT restore the input shape -- it returns src.size values."""
+    """Note histeq does NOT restore the input shape, it returns src.size values."""
     rng = np.random.default_rng(24)
     src = rng.uniform(size=shape)
 
@@ -1024,7 +1024,7 @@ def test_histeq_is_rank_preserving_below_the_uint8_wrap(nbins):
 
 
 @pytest.mark.parametrize("nbins", [256, 300, 512])
-@pytest.mark.xfail(reason="BUG: the CDFs are cast to uint8 after being scaled by nbr_bins, so "
+@pytest.mark.xfail(reason="Bug. The CDFs are cast to uint8 after being scaled by nbr_bins, so "
                    "nbr_bins >= 256 wraps modulo 256 and destroys monotonicity",
                    strict=False)
 def test_histeq_is_rank_preserving_for_large_bin_counts(nbins):
@@ -1102,7 +1102,7 @@ def test_eul_to_quat_flip_equals_negating_psi():
 
 @pytest.mark.parametrize("seed", [0, 1, 2])
 def test_eul_to_quat_psi_does_not_move_the_projection_direction(seed):
-    """The S2 point only depends on phi and theta; psi is the in-plane rotation."""
+    """The S2 point only depends on phi and theta. psi is the in-plane rotation."""
     rng = np.random.default_rng(seed)
     phi, theta = rng.uniform(-np.pi, np.pi, size=(2, 6))
 
@@ -1308,7 +1308,7 @@ def test_create_proportional_grid_is_transpose_symmetric(N):
 
 @pytest.mark.parametrize("N", [4, 8, 16])
 def test_create_proportional_grid_reaches_one_at_the_edge(N):
-    """The value is 2*r/N, so a pixel N/2 away from the centre reads exactly 1."""
+    """The value is 2*r/N, so a pixel N/2 away from the center reads exactly 1."""
     g = create_proportional_grid(N)
 
     assert np.isclose(g[N // 2, 0], 1.0)
@@ -1369,7 +1369,7 @@ def test_ctemh_envelope_is_a_gaussian_with_fwhm_halfwidth():
     b = 0.3
     sigma = b / np.sqrt(2 * np.log(2))
 
-    # Cs = df = 0 and ac = 1 isolates the envelope: CTF = -cos(0) * wi = -wi
+    # Cs = df = 0 and ac = 1 isolates the envelope. CTF = -cos(0) * wi = -wi
     ctf = ctemh_cryoFrank(k, 0.0, 0.0, 300.0, b, 1.0)
 
     assert np.allclose(ctf, -np.exp(-k**2 / (2 * sigma**2)), atol=1e-12)
@@ -1432,7 +1432,7 @@ def test_get_CTFs_shape_core_util(n_def, width):
 
 @pytest.mark.parametrize("width", [4, 8, 9, 16])
 def test_get_CTFs_puts_dc_at_the_array_origin(width):
-    """The grid is built centred and then ifftshift-ed, so k = 0 ends up at [0, 0]."""
+    """The grid is built centerd and then ifftshift-ed, so k = 0 ends up at [0, 0]."""
     ctf = get_CTFs(np.array([10000.0]), width, 1.5, 2.0, 300.0, 1.0, 0.1)
 
     assert np.isclose(ctf[0, 0, 0], -0.1)
@@ -1548,7 +1548,7 @@ def test_rotate_fill_right_angle_rotations_compose():
 
 
 def test_rotate_fill_never_introduces_a_zero_border():
-    """A plain 'constant' fill would leave zero corners; grid-wrap must not."""
+    """A plain 'constant' fill would leave zero corners. grid-wrap must not."""
     img = np.full((16, 16), 5.0)
     img[6:10, 6:10] = 9.0
 
@@ -1578,8 +1578,8 @@ def test_get_image_width_from_stack_reads_the_configured_stack(params_sandbox_co
     assert get_image_width_from_stack(path) == width
 
 
-@pytest.mark.xfail(reason="BUG: the `stack_file` argument is only used for the extension "
-                   "check -- the file actually opened is params.img_stack_file",
+@pytest.mark.xfail(reason="Bug. The `stack_file` argument is only used for the extension "
+                   "check, the file actually opened is params.img_stack_file",
                    strict=False)
 def test_get_image_width_from_stack_uses_its_argument(params_sandbox_core_util):
     import mrcfile
@@ -1641,7 +1641,7 @@ def _q2spider_stable(q):
     """q2Spider intermittently hands back its (0,0,0) start point without converging.
 
     Retry until the residual is genuinely zero so the surrounding assertions test the
-    algorithm rather than the flake.  q2Spider normalises internally, so rescaling the
+    algorithm rather than the flake.  q2Spider normalizes internally, so rescaling the
     input poses the identical mathematical problem while perturbing the bit pattern.
     """
     q_unit = np.asarray(q, dtype=float) / np.linalg.norm(q)
@@ -1654,7 +1654,7 @@ def _q2spider_stable(q):
 
 
 def _psi_ang_stable(pd):
-    """psi_ang inherits the q2Spider stall; retry until the angles really encode `pd`."""
+    """psi_ang inherits the q2Spider stall. Retry until the angles really encode `pd`."""
     last = None
     for _ in range(_SOLVER_ATTEMPTS):
         last = np.array(psi_ang(pd))
@@ -1678,7 +1678,7 @@ def test_q_product_matches_hamilton_reference(seed):
 
 @pytest.mark.parametrize("seed", range(6))
 def test_q_product_matches_scipy_rotation_composition(seed):
-    """R(q*s) == R(q) R(s); quaternion product is rotation composition."""
+    """R(q*s) == R(q) R(s). quaternion product is rotation composition."""
     q = _unit_quats(5, seed)
     s = _unit_quats(5, seed + 50)
     p = q_product(q, s)
@@ -1727,7 +1727,7 @@ def test_q_product_conjugate_gives_identity(seed):
 
 @pytest.mark.parametrize("seed", range(5))
 def test_q_product_is_associative(seed):
-    """(q s) t == q (s t); quaternions are associative but not commutative."""
+    """(q s) t == q (s t). Quaternions are associative but not commutative."""
     q = _unit_quats(4, seed)
     s = _unit_quats(4, seed + 20)
     t = _unit_quats(4, seed + 40)
@@ -1773,7 +1773,7 @@ def test_q_product_output_shape(qshape, sshape, expected):
 
 
 def test_q_product_1d_inputs_return_column_vector():
-    """Known integer example: (1+2i+3j+4k)(5+6i+7j+8k) = -60 + 12i + 30j + 24k."""
+    """Known integer example. (1+2i+3j+4k)(5+6i+7j+8k) = -60 + 12i + 30j + 24k."""
     p = q_product(np.array([1.0, 2.0, 3.0, 4.0]), np.array([5.0, 6.0, 7.0, 8.0]))
     assert p.shape == (4, 1)
     assert np.allclose(p.ravel(), [-60.0, 12.0, 30.0, 24.0])
@@ -1788,7 +1788,7 @@ def test_q_product_silently_truncates_extra_rows():
     assert np.allclose(p, q_product(q[:4], s[:4]))
 
 
-@pytest.mark.xfail(reason="BUG: q_product catches its own AssertionError, prints to stdout and keeps going, "
+@pytest.mark.xfail(reason="Bug. q_product catches its own AssertionError, prints to stdout and keeps going, "
                           "so a short input dies later with an unrelated IndexError instead of a clear error",
                    strict=False)
 @pytest.mark.parametrize("bad_rows", [2, 3])
@@ -1827,7 +1827,7 @@ def test_q_product_single_matches_q_product(seed):
     ],
 )
 def test_quaternion_to_S2_known_values(q, expected):
-    """For q = [cos(t/2), sin(t/2), 0, 0] the image is (0, sin t, cos t): the z axis
+    """For q = [cos(t/2), sin(t/2), 0, 0] the image is (0, sin t, cos t). The z axis
     swept toward +y, i.e. the transpose (inverse) rotation applied to z_hat."""
     assert np.allclose(quaternion_to_S2(q.reshape(4, 1)).ravel(), expected, atol=1e-12)
 
@@ -1869,13 +1869,13 @@ def test_quaternion_to_S2_drops_the_psi_rotation(psi):
 
 @pytest.mark.parametrize("psi", [0.3, 1.1, -2.0])
 def test_quaternion_to_S2_does_not_drop_a_right_z_rotation(psi):
-    """The invariance is one sided; multiplying on the right moves the point."""
+    """The invariance is one sided. Multiplying on the right moves the point."""
     q = _unit_quats(7, 3)
     qz = np.tile(np.array([np.cos(psi / 2), 0.0, 0.0, -np.sin(psi / 2)]).reshape(4, 1), (1, 7))
     assert not np.allclose(quaternion_to_S2(q_product(q, qz)), quaternion_to_S2(q), atol=1e-6)
 
 
-@pytest.mark.xfail(reason="BUG: quaternion_to_S2 never normalises, and its z row is 2(q0^2+q3^2)-1 rather than "
+@pytest.mark.xfail(reason="Bug. quaternion_to_S2 never normalizes, and its z row is 2(q0^2+q3^2)-1 rather than "
                           "2(q0^2+q3^2)/|q|^2-1, so a non-unit quaternion silently yields a non-unit, "
                           "non-parallel vector instead of the same rotation axis",
                    strict=False)
@@ -2061,7 +2061,7 @@ def test_collapse_euler_returns_unit_vectors_in_half_space(plane_vec):
 # ----------------------------------------------------------------------------------
 @pytest.mark.parametrize("seed", range(10))
 def test_convert_euler_to_S2_is_the_spherical_polar_map(seed):
-    """ZXZ(a,b,c) has R[:,2] = (sin a sin b, -cos a sin b, cos b); after the
+    """ZXZ(a,b,c) has R[:,2] = (sin a sin b, -cos a sin b, cos b). After the
     (-ry, rx, rz) permutation that is the textbook (cos a sin b, sin a sin b, cos b)."""
     rng = np.random.default_rng(seed)
     euler = rng.uniform(-np.pi, np.pi, size=(9, 3))
@@ -2110,7 +2110,7 @@ def test_convert_euler_to_S2_known_values(angles, expected):
 
 
 def test_convert_euler_to_S2_requires_an_nx3_array():
-    """A single (3,) triple is not accepted; the routine indexes a 3-D matrix stack."""
+    """A single (3,) triple is not accepted. The routine indexes a 3-D matrix stack."""
     with pytest.raises(IndexError):
         convert_euler_to_S2(np.zeros(3))
 
@@ -2160,7 +2160,7 @@ def test_convert_S2_to_euler_branch_selection_follows_sign_of_x(seed):
 
 @pytest.mark.parametrize("sz", [2.0, -3.5])
 def test_convert_S2_to_euler_gives_nan_polar_angle_for_non_unit_input(sz):
-    """arccos of |sz| > 1 is nan; the routine performs no normalisation."""
+    """arccos of |sz| > 1 is nan. The routine performs no normalization."""
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", RuntimeWarning)
         angles = convert_S2_to_euler(np.array([[0.0], [0.0], [sz]]))
@@ -2225,7 +2225,7 @@ def test_optfunc_is_the_residual_against_eul_to_quat(seed):
 
 @pytest.mark.parametrize("seed", range(10))
 def test_q2Spider_inverts_eul_to_quat(seed):
-    """The optimiser recovers angles that rebuild the input quaternion exactly."""
+    """The optimizer recovers angles that rebuild the input quaternion exactly."""
     rng = np.random.default_rng(seed)
     euler = rng.uniform(-np.pi, np.pi, size=(4, 3))
     euler[:, 1] = 0.5 * (euler[:, 1] + np.pi)  # keep theta away from the gimbal poles
@@ -2238,7 +2238,7 @@ def test_q2Spider_inverts_eul_to_quat(seed):
 
 @pytest.mark.parametrize("seed", range(4))
 def test_q2Spider_inverts_the_negated_quaternion_too(seed):
-    """-q is the same rotation; the solver reproduces -q, not q."""
+    """-q is the same rotation. The solver reproduces -q, not q."""
     rng = np.random.default_rng(seed + 200)
     euler = rng.uniform(-np.pi, np.pi, size=(3, 3))
     euler[:, 1] = 0.5 * (euler[:, 1] + np.pi)
@@ -2277,7 +2277,7 @@ def test_q2Spider_actually_moves_away_from_its_start_point(seed):
 def test_optfunc_jacobian_is_rank_deficient_at_the_solver_start():
     """The root cause of the q2Spider stalls.
 
-    d/da of q3(psi) q2(theta) q1(phi) at a = 0: the phi and psi columns are bit
+    d/da of q3(psi) q2(theta) q1(phi) at a = 0. The phi and psi columns are bit
     identical (both rotate about z, and at theta = 0 they are the same rotation), and
     the i component is second order in a, so its whole row vanishes.  The 4x3 Jacobian
     therefore has rank 2 and any residual along i is invisible to the first-order model.
@@ -2306,8 +2306,8 @@ def test_q2Spider_rejects_a_column_vector():
         q2Spider(Q_ONE.reshape(4, 1))
 
 
-@pytest.mark.xfail(reason="BUG: q2Spider seeds Levenberg-Marquardt at a=(0,0,0), where its Jacobian is rank 2 of 3 "
-                          "and the i-component row vanishes; a residual along i is therefore invisible to the "
+@pytest.mark.xfail(reason="Bug. q2Spider seeds Levenberg-Marquardt at a=(0,0,0), where its Jacobian is rank 2 of 3 "
+                          "and the i-component row vanishes. a residual along i is therefore invisible to the "
                           "solver and every quaternion [q0,q1,0,0] comes back as the untouched start point (0,0,0)",
                    strict=False)
 @pytest.mark.parametrize("q1", [1.0, 0.866, 0.5, -0.7071])
@@ -2336,7 +2336,7 @@ def test_qs_to_spider_euler_angles_is_sign_invariant(seed):
 
 @pytest.mark.parametrize("seed", range(4))
 def test_qs_to_spider_euler_angles_middle_angle_is_non_positive(seed):
-    """scipy's zyz beta lies in [0, pi]; the routine negates the whole triple."""
+    """scipy's zyz beta lies in [0, pi]. The routine negates the whole triple."""
     q = _unit_quats(30, seed + 43)
     angles = qs_to_spider_euler_angles(q)
     assert (angles[1] <= 1e-12).all()
@@ -2379,7 +2379,7 @@ def test_qs_to_spider_and_q2Spider_describe_the_same_orientation(seed):
 # ----------------------------------------------------------------------------------
 @pytest.mark.parametrize("seed", range(8))
 def test_psi_ang_reference_quaternion_encodes_the_projection_direction(seed):
-    """Qr = [1+z, y, -x, 0] normalised satisfies quaternion_to_S2(Qr) == PD exactly."""
+    """Qr = [1+z, y, -x, 0] normalized satisfies quaternion_to_S2(Qr) == PD exactly."""
     pds = _unit_vecs(6, seed + 500)
     for i in range(pds.shape[1]):
         pd = pds[:, i]
@@ -2390,7 +2390,7 @@ def test_psi_ang_reference_quaternion_encodes_the_projection_direction(seed):
 
 @pytest.mark.parametrize("seed", range(8))
 def test_psi_ang_round_trips_back_to_the_projection_direction(seed):
-    """psi_ang returns DEGREES; converting back through convert_euler_to_S2 recovers PD."""
+    """psi_ang returns DEGREES. Converting back through convert_euler_to_S2 recovers PD."""
     pds = _unit_vecs(5, seed + 600)
     pds = pds[:, np.abs(pds[0]) > 0.05]  # x == 0 is a hard solver stall, covered separately
     for i in range(pds.shape[1]):
@@ -2401,7 +2401,7 @@ def test_psi_ang_round_trips_back_to_the_projection_direction(seed):
 
 @pytest.mark.parametrize("seed", range(8))
 def test_psi_ang_agrees_with_convert_S2_to_euler(seed):
-    """The legacy optimiser and the closed form modern routine must match."""
+    """The legacy optimizer and the closed form modern routine must match."""
     pds = _unit_vecs(5, seed + 700)
     pds = pds[:, np.abs(pds[0]) > 0.05]
     modern = convert_S2_to_euler(pds)
@@ -2456,7 +2456,7 @@ def test_psi_ang_rejects_a_column_vector():
         psi_ang(np.array([[0.0], [0.0], [1.0]]))
 
 
-@pytest.mark.xfail(reason="BUG: for any projection direction with x == 0 the reference quaternion is [1+z,y,0,0], "
+@pytest.mark.xfail(reason="Bug. for any projection direction with x == 0 the reference quaternion is [1+z,y,0,0], "
                           "a pure-i residual that stalls q2Spider at its (0,0,0) start point, so psi_ang returns "
                           "(0,0,0) and silently reports the north pole instead of the true direction",
                    strict=False)
@@ -2772,7 +2772,7 @@ def test_path_property_value(project_params, prop, expected):
 def test_path_property_is_a_relative_str(project_params, prop):
     val = getattr(project_params, prop)
     assert isinstance(val, str)
-    # every path is relative: the pipeline chdirs to the project root instead of using absolutes
+    # every path is relative. The pipeline chdirs to the project root instead of using absolutes
     assert not os.path.isabs(val)
 
 
@@ -2866,7 +2866,7 @@ def test_get_CC_meas_file(project_params, edge, prd, nbr):
 
 
 def test_get_CC_meas_file_argument_order_is_edge_prd_nbr(project_params):
-    # the three integers are not interchangeable; verify they land in declaration order
+    # the three integers are not interchangeable. verify they land in declaration order
     assert project_params.get_CC_meas_file(1, 2, 3).endswith("meas_edge_prDs_1_2_3.h5")
     assert project_params.get_CC_meas_file(3, 2, 1).endswith("meas_edge_prDs_3_2_1.h5")
 
@@ -2937,11 +2937,11 @@ def test_getter_file_extensions(project_params, getter, args, ext):
 
 
 # ---------------------------------------------------------------------------
-# derived scalars: ang_width and sh
+# derived scalars. ang_width and sh
 # ---------------------------------------------------------------------------
 
 def test_ang_width_is_zero_when_diameter_is_unset(fresh_params):
-    # guard clause: a falsy particle_diameter short-circuits to 0.0 instead of dividing
+    # guard clause. a falsy particle_diameter short-circuits to 0.0 instead of dividing
     assert fresh_params.particle_diameter == 0.0
     assert fresh_params.ang_width == 0.0
 
@@ -2957,7 +2957,7 @@ def test_ang_width_is_zero_when_diameter_is_unset(fresh_params):
     ],
 )
 def test_ang_width_formula(fresh_params, aperture, resolution, diameter):
-    # ang_width = min(aperture_index * resolution / diameter, sqrt(4 pi)); the second term is the
+    # ang_width = min(aperture_index * resolution / diameter, sqrt(4 pi)). The second term is the
     # angular width whose spherical cap covers the whole sphere
     fresh_params.aperture_index = aperture
     fresh_params.ms_estimated_resolution = resolution
@@ -2982,7 +2982,7 @@ def test_sh_is_resolution_over_diameter(fresh_params, resolution, diameter):
 
 
 def test_sh_divides_by_zero_when_diameter_is_unset(fresh_params):
-    # unlike ang_width, `sh` has no guard clause; this is what makes asdict() blow up on defaults
+    # unlike ang_width, `sh` has no guard clause. This is what makes asdict() blow up on defaults
     with pytest.raises(ZeroDivisionError):
         fresh_params.sh
 
@@ -3117,9 +3117,9 @@ def test_print_emits_every_param(project_params, capsys):
 
 
 @pytest.mark.xfail(
-    reason="BUG: asdict() evaluates every non-underscore attribute (including derived properties) "
+    reason="Bug. asdict() evaluates every non-underscore attribute (including derived properties) "
     "before checking its type, so the unguarded `sh` property raises ZeroDivisionError whenever "
-    "particle_diameter is still 0 -- i.e. asdict/save/repr crash on a default-constructed project",
+    "particle_diameter is still 0, i.e. asdict/save/repr crash on a default-constructed project",
     strict=False,
 )
 def test_asdict_works_on_default_params(fresh_params):
@@ -3267,7 +3267,7 @@ def test_load_chdirs_into_the_directory_of_the_toml(project_params, tmp_path):
     project_params.save(str(target))
     assert os.path.realpath(os.getcwd()) == os.path.realpath(str(tmp_path))
     project_params.load(str(target))
-    # side effect: every relative path property is now resolved against the toml's directory
+    # side effect. every relative path property is now resolved against the toml's directory
     assert os.path.realpath(os.getcwd()) == os.path.realpath(str(sub))
 
 
@@ -3299,7 +3299,7 @@ def test_load_chdirs_before_it_validates_the_contents(project_params, tmp_path):
 
 
 @pytest.mark.xfail(
-    reason="BUG: load() validates keys against dir(Params), which also contains methods and "
+    reason="Bug. load() validates keys against dir(Params), which also contains methods and "
     "properties, so a TOML key named e.g. 'save' silently shadows the bound method (and a key "
     "named 'out_dir' raises AttributeError) instead of being reported as unknown",
     strict=False,
@@ -3431,7 +3431,7 @@ def test_user_params_carry_a_description(name):
 
 @pytest.mark.parametrize("name", [n for n in USER_PARAM_NAMES if n != "ncpu"])
 def test_user_params_declare_the_level_they_affect(name):
-    # ncpu is the one exception: it is the global `-n/--ncpu` flag, not attached to a step
+    # ncpu is the one exception. It is the global `-n/--ncpu` flag, not attached to a step
     assert PARAM_HINTS[name].__metadata__[0].affects
 
 
@@ -3441,7 +3441,7 @@ def test_user_params_are_serialized(project_params, name):
 
 
 @pytest.mark.xfail(
-    reason="BUG: opt_movie is annotated as a bare `dict` with no ParamInfo, so it is the one "
+    reason="Bug. opt_movie is annotated as a bare `dict` with no ParamInfo, so it is the one "
     "declared param that get_param_info() cannot describe (raises IndexError)",
     strict=False,
 )
@@ -3451,8 +3451,8 @@ def test_every_declared_param_has_a_paraminfo():
 
 
 @pytest.mark.xfail(
-    reason="BUG: rad is declared Annotated[int, ParamInfo('Manifold pruning'), True, "
-    "[ProjectLevel.MANIFOLD_ANALYSIS]] -- the user_param flag and affects list were meant to be "
+    reason="Bug. rad is declared Annotated[int, ParamInfo('Manifold pruning'), True, "
+    "[ProjectLevel.MANIFOLD_ANALYSIS]], the user_param flag and affects list were meant to be "
     "ParamInfo arguments but became extra Annotated metadata, so rad is invisible to the CLI",
     strict=False,
 )
@@ -3463,7 +3463,7 @@ def test_paraminfo_is_the_only_annotation_metadatum():
 
 
 @pytest.mark.xfail(
-    reason="BUG: rad's malformed Annotated leaves user_param=False, so --rad is missing from the "
+    reason="Bug. rad's malformed Annotated leaves user_param=False, so --rad is missing from the "
     "manifold-analysis CLI even though the pruning radius is meant to be user tunable",
     strict=False,
 )
@@ -3560,7 +3560,7 @@ def test_get_params_for_level_returns_type_and_info(fresh_params, level):
 
 
 def test_first_appearance_hides_repeats_of_a_multi_level_param(fresh_params):
-    # con_order_range affects PSI_ANALYSIS, PROBABILITY_LANDSCAPE and TRAJECTORY; with
+    # con_order_range affects PSI_ANALYSIS, PROBABILITY_LANDSCAPE and TRAJECTORY. with
     # first_appearance=True it is only offered on the earliest of the three
     assert "con_order_range" in fresh_params.get_params_for_level(ProjectLevel.PSI_ANALYSIS)
     assert "con_order_range" not in fresh_params.get_params_for_level(
@@ -3606,7 +3606,7 @@ def test_first_appearance_is_a_subset_of_all_appearances(fresh_params, level):
 
 
 def test_every_user_param_with_affects_appears_exactly_once_across_levels(fresh_params):
-    # the CLI adds each --flag to one subparser; a duplicate would be an argparse conflict
+    # the CLI adds each --flag to one subparser. a duplicate would be an argparse conflict
     seen = []
     for level in ProjectLevel:
         seen.extend(fresh_params.get_params_for_level(level).keys())
@@ -3648,7 +3648,7 @@ def test_get_param_info_returns_the_list_generic_for_list_params(fresh_params):
 
 @pytest.mark.parametrize("name", ["nonexistent", "out_dir", "create_dir", "sh"])
 def test_get_param_info_on_a_non_param_raises_keyerror(fresh_params, name):
-    # only names in __annotations__ are describable; properties and methods are not
+    # only names in __annotations__ are describable. Properties and methods are not
     with pytest.raises(KeyError):
         fresh_params.get_param_info(name)
 
@@ -3661,7 +3661,7 @@ def test_get_param_info_agrees_with_get_user_params(fresh_params, name):
 
 
 # ---------------------------------------------------------------------------
-# fixture hygiene: prove the singleton really is restored
+# fixture hygiene. Prove the singleton really is restored
 # ---------------------------------------------------------------------------
 
 def test_singleton_state_is_isolated_between_tests_part_one(fresh_params):
@@ -3736,7 +3736,7 @@ def write_file(tmp_path, name, text):
 
 
 def star_block(labels, rows, indexed=True):
-    """A 'loop_' block: one '_label #n' line per column then whitespace separated rows."""
+    """A 'loop_' block. one '_label #n' line per column then whitespace separated rows."""
     lines = ["", "loop_", ""]
     for i, lab in enumerate(labels):
         lines.append(f"_{lab} #{i + 1}" if indexed else f"_{lab}")
@@ -3746,13 +3746,13 @@ def star_block(labels, rows, indexed=True):
 
 
 def old_star_text(labels, rows, n_preamble=1, indexed=True):
-    """RELION 3.0 style: a single unnamed data block, no optics group."""
+    """RELION 3.0 style. a single unnamed data block, no optics group."""
     lines = [""] * n_preamble + ["data_"] + star_block(labels, rows, indexed)
     return "\n".join(lines) + "\n"
 
 
 def new_star_text(opt_labels, opt_rows, part_labels, part_rows):
-    """RELION 3.1 style: a data_optics block followed by a data_particles block."""
+    """RELION 3.1 style. a data_optics block followed by a data_particles block."""
     lines = ["# version 30001", "", "data_optics"]
     lines += star_block(opt_labels, opt_rows)
     lines += ["", "# version 30001", "", "data_particles"]
@@ -3790,7 +3790,7 @@ def full_old_star(tmp_path, n=4, extra_labels=(), extra_cols=None, name="old.sta
 
 
 def full_new_star(tmp_path, n=4, extra_labels=(), extra_cols=None, name="new.star"):
-    """New-format file: microscope parameters in the optics block only."""
+    """New-format file. Microscope parameters in the optics block only."""
     base = angle_rows(n)
     part_labels = ANG_LABELS + DEF_LABELS + list(extra_labels)
     parts = [base]
@@ -3805,7 +3805,7 @@ def full_new_star(tmp_path, n=4, extra_labels=(), extra_cols=None, name="new.sta
 
 
 # --------------------------------------------------------------------------------------
-# star.parse_star -- label scanning and column naming
+# star.parse_star, label scanning and column naming
 # --------------------------------------------------------------------------------------
 
 @pytest.mark.parametrize("label", ["rlnVoltage", "rlnAngleRot", "rlnDefocusU",
@@ -3846,7 +3846,7 @@ def test_parse_star_keep_index_only_rstrips(tmp_path, raw, expected):
 
 @pytest.mark.parametrize("n_preamble", [0, 1, 2, 5, 9])
 def test_parse_star_tolerates_arbitrary_preamble(tmp_path, n_preamble):
-    # nothing before the first "_rln" line matters; foundheader gates the break
+    # nothing before the first "_rln" line matters. foundheader gates the break
     rows = [[1.0, 2.0], [3.0, 4.0]]
     p = write_file(tmp_path, "s.star",
                    old_star_text(["rlnAngleRot", "rlnAngleTilt"], rows, n_preamble=n_preamble))
@@ -3893,14 +3893,14 @@ def test_parse_star_infers_dtypes(tmp_path):
 
 
 def test_parse_star_unindexed_labels(tmp_path):
-    # the "#n" suffix is optional in STAR; the scanner does not need it
+    # the "#n" suffix is optional in STAR. The scanner does not need it
     p = write_file(tmp_path, "s.star",
                    old_star_text(["rlnAngleRot", "rlnAngleTilt"], [[1.0, 2.0]], indexed=False))
     assert star.parse_star(p, 0).columns.tolist() == ["rlnAngleRot", "rlnAngleTilt"]
 
 
 def test_parse_star_duplicate_labels_are_kept(tmp_path):
-    # no de-duplication: two identical labels give two identically named columns
+    # no de-duplication. Two identical labels give two identically named columns
     text = "\ndata_\n\nloop_\n_rlnA #1\n_rlnA #2\n1 2\n3 4\n"
     p = write_file(tmp_path, "s.star", text)
     df = star.parse_star(p, 0)
@@ -3909,7 +3909,7 @@ def test_parse_star_duplicate_labels_are_kept(tmp_path):
 
 
 def test_parse_star_non_rln_label_terminates_the_block(tmp_path):
-    # only "_rln" prefixed lines count; a foreign label ends the header scan early and
+    # only "_rln" prefixed lines count. a foreign label ends the header scan early and
     # then becomes an unparsable data line -> column/label length mismatch
     text = "\ndata_\n\nloop_\n_rlnA #1\n_myLabel #2\n1 2\n"
     p = write_file(tmp_path, "s.star", text)
@@ -3918,7 +3918,7 @@ def test_parse_star_non_rln_label_terminates_the_block(tmp_path):
 
 
 def test_parse_star_indented_label_is_not_recognized(tmp_path):
-    # startswith() is literal: leading whitespace hides the label, so no header is ever
+    # startswith() is literal. Leading whitespace hides the label, so no header is ever
     # found and the scanner runs to EOF with skiprows == the whole file
     text = "\ndata_\n\nloop_\n  _rlnA #1\n1\n"
     p = write_file(tmp_path, "s.star", text)
@@ -3938,7 +3938,7 @@ def test_parse_star_skip_before_header_block_is_harmless(tmp_path, skip):
 
 @pytest.mark.parametrize("skip,n_labels", [(6, 2), (7, 1)])
 def test_parse_star_skip_into_header_block_loses_columns(tmp_path, skip, n_labels):
-    # labels live on lines 5..7; skipping past the first one leaves fewer names than
+    # labels live on lines 5..7. Skipping past the first one leaves fewer names than
     # data columns and pandas refuses the rename
     p = write_file(tmp_path, "s.star", old_star_text(["rlnA", "rlnB", "rlnC"], [[1, 2, 3]]))
     with pytest.raises(ValueError, match=f"new values have {n_labels} element"):
@@ -3963,7 +3963,7 @@ def test_parse_star_skip_past_end_of_file_raises(tmp_path):
 
 
 def test_parse_star_header_only_file_raises(tmp_path):
-    # labels but no data rows: pandas has nothing to read below skiprows
+    # labels but no data rows. pandas has nothing to read below skiprows
     p = write_file(tmp_path, "s.star", old_star_text(["rlnA", "rlnB"], []))
     with pytest.raises(pd.errors.EmptyDataError):
         star.parse_star(p, 0)
@@ -4036,7 +4036,7 @@ def test_parse_star_optics_keep_index(tmp_path):
 
 
 def test_parse_star_optics_ignores_extra_optics_groups(tmp_path):
-    # nrows=1: only the first optics group is ever returned
+    # nrows=1. Only the first optics group is ever returned
     text = new_star_text(["rlnOpticsGroup"] + MS_LABELS,
                          [[1, 300.0, 2.7, 0.1], [2, 200.0, 2.0, 0.07]],
                          ANG_LABELS, [[1.0, 2.0, 3.0]])
@@ -4069,7 +4069,7 @@ def test_parse_star_optics_without_labels_raises(tmp_path):
 
 
 # --------------------------------------------------------------------------------------
-# star.get_align_data -- shapes, values, quaternions
+# star.get_align_data, shapes, values, quaternions
 # --------------------------------------------------------------------------------------
 
 @pytest.mark.parametrize("builder", [full_old_star, full_new_star])
@@ -4109,7 +4109,7 @@ def test_get_align_data_matches_eul_to_quat(tmp_path, clean_params, flip):
 
 
 def test_get_align_data_scipy_oracle_flip_true(tmp_path, clean_params):
-    # flip=True reproduces the legacy "spider" convention: clockwise extrinsic zyz,
+    # flip=True reproduces the legacy "spider" convention. Clockwise extrinsic zyz,
     # scalar-first quaternion, i.e. scipy's scalar-last quat permuted to [q1,q2,q3,q0]
     p, base = full_old_star(tmp_path, n=8)
     _, q, _, _ = star.get_align_data(p, flip=True)
@@ -4169,7 +4169,7 @@ def test_get_align_data_angles_are_converted_from_degrees(tmp_path, clean_params
 
 
 # --------------------------------------------------------------------------------------
-# star.get_align_data -- microscope parameter side effects on the params singleton
+# star.get_align_data, microscope parameter side effects on the params singleton
 # --------------------------------------------------------------------------------------
 
 @pytest.mark.parametrize("attr,value", [
@@ -4211,7 +4211,7 @@ def test_get_align_data_does_not_touch_pixel_size(tmp_path, clean_params):
 
 
 # --------------------------------------------------------------------------------------
-# star.get_align_data -- origin/shift columns
+# star.get_align_data, origin/shift columns
 # --------------------------------------------------------------------------------------
 
 def test_get_align_data_origin_in_pixels_is_used_verbatim(tmp_path, clean_params):
@@ -4278,7 +4278,7 @@ def test_get_align_data_zero_shift_is_float_even_for_integer_defocus(tmp_path, c
     assert sh[0].shape == U.shape
 
 
-@pytest.mark.xfail(reason="BUG: fallback does `shy = shx`, so the two shift arrays alias",
+@pytest.mark.xfail(reason="Bug. Fallback does `shy = shx`, so the two shift arrays alias",
                    strict=False)
 def test_get_align_data_zero_shifts_are_independent_arrays(tmp_path, clean_params):
     p, _ = full_old_star(tmp_path, n=3)
@@ -4289,7 +4289,7 @@ def test_get_align_data_zero_shifts_are_independent_arrays(tmp_path, clean_param
 
 
 def test_get_align_data_angstrom_origin_with_unset_pixel_size(tmp_path, clean_params):
-    # ms_pixel_size defaults to 0.0; the division is unguarded and quietly yields inf/nan
+    # ms_pixel_size defaults to 0.0. The division is unguarded and quietly yields inf/nan
     assert clean_params.ms_pixel_size == 0.0
     shifts = np.array([[3.0, 0.0], [-3.0, 1.0]])
     p, _ = full_new_star(tmp_path, n=2, extra_labels=("rlnOriginXAngst", "rlnOriginYAngst"),
@@ -4302,7 +4302,7 @@ def test_get_align_data_angstrom_origin_with_unset_pixel_size(tmp_path, clean_pa
 
 
 # --------------------------------------------------------------------------------------
-# star.get_align_data -- format detection and failure paths
+# star.get_align_data, format detection and failure paths
 # --------------------------------------------------------------------------------------
 
 def test_get_align_data_detects_optics_block(tmp_path, clean_params, capsys):
@@ -4370,7 +4370,7 @@ def test_get_align_data_exits_when_voltage_is_not_numeric(tmp_path, clean_params
 
 def test_get_align_data_new_format_needs_optics_in_the_optics_block(tmp_path, clean_params,
                                                                     trap_exit):
-    # voltage present only among the particles is not found: df0 is the optics frame
+    # voltage present only among the particles is not found. df0 is the optics frame
     text = new_star_text(["rlnOpticsGroup"], [[1]],
                          ANG_LABELS + DEF_LABELS + MS_LABELS,
                          [[0.0, 0.0, 0.0, 1e4, 1e4] + MS_VALUES])
@@ -4381,7 +4381,7 @@ def test_get_align_data_new_format_needs_optics_in_the_optics_block(tmp_path, cl
 
 def test_get_align_data_error_handling_relies_on_exit_terminating(tmp_path, clean_params,
                                                                   swallow_exit):
-    # the except branch neither returns nor re-raises: if exit() ever came back, the
+    # the except branch neither returns nor re-raises. if exit() ever came back, the
     # function would keep running with unbound locals
     labels = ANG_LABELS + MS_LABELS
     p = write_file(tmp_path, "nodef.star",
@@ -4513,7 +4513,7 @@ def test_write_star_requires_phi_theta_psi_columns(star_project):
         star.write_star("out.star", "t.mrcs", pd.DataFrame(dict(a=[1.0], b=[2.0], c=[3.0])))
 
 
-@pytest.mark.xfail(reason="BUG: write_star indexes df.psi[i] by label over range(len(df)), "
+@pytest.mark.xfail(reason="Bug. write_star indexes df.psi[i] by label over range(len(df)), "
                           "so any non-RangeIndex frame raises KeyError",
                    strict=False)
 def test_write_star_ignores_the_dataframe_index(star_project):
@@ -4525,7 +4525,7 @@ def test_write_star_ignores_the_dataframe_index(star_project):
 
 
 # --------------------------------------------------------------------------------------
-# myio -- backend selection
+# myio, backend selection
 # --------------------------------------------------------------------------------------
 
 @pytest.mark.parametrize("name,is_hdf5", [
@@ -4604,7 +4604,7 @@ def test_myio_rewrite_replaces_rather_than_merges(tmp_path, suffix):
 
 
 # --------------------------------------------------------------------------------------
-# myio -- dtype / shape fidelity
+# myio, dtype / shape fidelity
 # --------------------------------------------------------------------------------------
 
 @pytest.mark.parametrize("suffix", [".pkl", ".h5"])
@@ -4720,7 +4720,7 @@ def test_myio_h5_returns_bytes_for_a_string_payload(tmp_path):
     assert back.decode() == "hello"
 
 
-@pytest.mark.xfail(reason="BUG: str survives the pickle backend but returns as bytes from "
+@pytest.mark.xfail(reason="Bug. str survives the pickle backend but returns as bytes from "
                           "the .h5 backend, so the two are not interchangeable",
                    strict=False)
 def test_myio_string_round_trips_for_both_backends(tmp_path):
@@ -4731,7 +4731,7 @@ def test_myio_string_round_trips_for_both_backends(tmp_path):
 
 
 # --------------------------------------------------------------------------------------
-# myio -- on-disk format and key handling
+# myio, on-disk format and key handling
 # --------------------------------------------------------------------------------------
 
 def test_myio_pickle_file_is_a_plain_pickled_dict(tmp_path):
@@ -4795,7 +4795,7 @@ def test_myio_h5_slash_in_key_creates_an_unreadable_nested_group(tmp_path):
 
 @pytest.mark.parametrize("suffix", [".pkl", ".h5"])
 def test_myio_mimics_the_project_psi_file_payload(tmp_path, suffix):
-    # shape of a real diff_maps payload: eigenvectors, eigenvalues, index list
+    # shape of a real diff_maps payload. Eigenvectors, eigenvalues, index list
     rng = np.random.default_rng(0)
     psi = rng.standard_normal((50, 8))
     lamb = np.sort(rng.random(8))[::-1].copy()
@@ -4907,7 +4907,7 @@ def test_lovisolo_silva_lies_on_constant_x_rings(n):
 
 @pytest.mark.parametrize("n", [20, 50, 100, 200, 300, 400, 500])
 def test_lovisolo_silva_min_separation_tracks_target_spacing(n):
-    # target nearest-neighbour arc is delta = sqrt(A3 / N) with A3 the unit sphere area
+    # target nearest-neighbor arc is delta = sqrt(A3 / N) with A3 the unit sphere area
     x = lovisolo_silva_tessellation(n)
     d = np.arccos(np.clip(x @ x.T, -1.0, 1.0))
     np.fill_diagonal(d, np.inf)
@@ -4943,7 +4943,7 @@ def test_fibonacci_unit_norm(n):
 
 @pytest.mark.parametrize("n", [1, 4, 9, 33, 100])
 def test_fibonacci_z_is_symmetrically_shifted_ladder(n):
-    # z_j = 1 - (2j+1)/N places the samples at the centres of N equal-area z bands
+    # z_j = 1 - (2j+1)/N places the samples at the centers of N equal-area z bands
     z = fibonacci_tessellation(n)[:, 2]
     assert np.allclose(z, 1.0 - (2 * np.arange(n) + 1) / n)
 
@@ -4996,7 +4996,7 @@ def test_fibonacci_is_deterministic(n):
 
 @pytest.mark.parametrize("n", [100, 300])
 def test_fibonacci_is_better_separated_than_lovisolo_silva(n):
-    # the Fibonacci spiral has no ring seams, so its worst nearest-neighbour gap is larger
+    # the Fibonacci spiral has no ring seams, so its worst nearest-neighbor gap is larger
     def min_arc(x):
         d = np.arccos(np.clip(x @ x.T, -1.0, 1.0))
         np.fill_diagonal(d, np.inf)
@@ -5051,7 +5051,7 @@ def test_collect_nearest_neighbors_reports_zero_for_unclaimed_points():
     assert counts[0] == 2 and counts[1] == 0 and counts[2] == 0
 
 
-@pytest.mark.xfail(reason="BUG: bin_counts squeezes a single-row neighbour array to 0-d, "
+@pytest.mark.xfail(reason="Bug. bin_counts squeezes a single-row neighbor array to 0-d, "
                           "so np.bincount rejects it", strict=False)
 def test_collect_nearest_neighbors_accepts_a_single_query_point():
     x = fibonacci_tessellation(10)
@@ -5068,13 +5068,13 @@ def test_collect_nearest_neighbors_single_query_currently_raises():
 
 
 # --------------------------------------------------------------------------------------
-# bin_and_threshold: bin construction
+# bin_and_threshold. Bin construction
 # --------------------------------------------------------------------------------------
 @pytest.mark.parametrize("tess", ["lovisolo_silva", "fibonacci"])
 @pytest.mark.parametrize("bin_width", [0.8, 0.6, 0.45, 0.3])
 def test_bin_and_threshold_bin_count_matches_requested_resolution(tess, bin_width):
-    # requested_n_bins = int(4*pi / bin_width^2) covers the whole sphere; only the half space
-    # dot(plane_vec, centre) >= 0 survives, so roughly half the bins are kept
+    # requested_n_bins = int(4*pi / bin_width^2) covers the whole sphere. Only the half space
+    # dot(plane_vec, center) >= 0 survives, so roughly half the bins are kept
     s2 = random_half_space_points(400, seed=3)
     _, centers, _, _ = bin_and_threshold(s2, bin_width, 1, tess)
     requested = int(4 * np.pi / bin_width**2)
@@ -5101,14 +5101,14 @@ def test_bin_and_threshold_keeps_exactly_the_positive_half_space_bins(tess, tess
 def test_bin_and_threshold_bin_centers_lie_in_the_requested_hemisphere(tess, plane_vec):
     s2 = random_half_space_points(200, seed=5, plane_vec=plane_vec)
     _, centers, _, _ = bin_and_threshold(s2, 0.6, 1, tess, plane_vec=plane_vec)
-    # the cut is inclusive: centres exactly on the plane are kept
+    # the cut is inclusive. Centers exactly on the plane are kept
     assert np.all(plane_vec @ centers >= 0.0)
     assert np.allclose(np.linalg.norm(centers, axis=0), 1.0)
 
 
 @pytest.mark.parametrize("tess", ["lovisolo_silva", "fibonacci"])
 def test_bin_and_threshold_does_not_mirror_points_itself(tess):
-    # mirroring onto the half space happens upstream (collapse_to_half_space); a point below the
+    # mirroring onto the half space happens upstream (collapse_to_half_space). a point below the
     # plane is still assigned, but to the nearest kept bin rather than to its antipode's bin
     p = np.array([[1.0], [0.2], [0.1]])
     p /= np.linalg.norm(p, axis=0)
@@ -5143,7 +5143,7 @@ def test_bin_and_threshold_with_no_requested_bins_fails(bin_width):
 
 
 # --------------------------------------------------------------------------------------
-# bin_and_threshold: hard assignment
+# bin_and_threshold. hard assignment
 # --------------------------------------------------------------------------------------
 @pytest.mark.parametrize("tess", ["lovisolo_silva", "fibonacci"])
 @pytest.mark.parametrize("n_points", [37, 150, 400])
@@ -5181,10 +5181,10 @@ def test_binning_is_deterministic(tess):
     assert a[3] == b[3]
 
 
-@pytest.mark.xfail(reason="BUG: np.array([...], dtype=object) collapses to a 2-D array when "
+@pytest.mark.xfail(reason="Bug. np.array([...], dtype=object) collapses to a 2-D array when "
                           "every bin holds the same number of points", strict=False)
 def test_membership_list_is_always_one_dimensional():
-    # one image exactly on each kept bin centre gives every bin a membership of length one
+    # one image exactly on each kept bin center gives every bin a membership of length one
     width = 2.0
     centers = fibonacci_tessellation(int(4 * np.pi / width**2)).T
     s2 = centers[:, centers[0, :] >= 0.0]
@@ -5202,7 +5202,7 @@ def test_membership_list_collapses_to_2d_for_equal_sized_bins():
 
 
 # --------------------------------------------------------------------------------------
-# bin_and_threshold: thresholding
+# bin_and_threshold. Thresholding
 # --------------------------------------------------------------------------------------
 @pytest.mark.parametrize("tess", ["lovisolo_silva", "fibonacci"])
 @pytest.mark.parametrize("thres_low", [0, 1, 2, 5, 10, 10000])
@@ -5281,7 +5281,7 @@ def test_high_threshold_is_a_no_op_when_larger_than_every_bin(params_guard_geome
 
 
 # --------------------------------------------------------------------------------------
-# bin_and_threshold: cone assignment
+# bin_and_threshold. cone assignment
 # --------------------------------------------------------------------------------------
 @pytest.mark.parametrize("factor", [0.5, 1.0, 1.5])
 def test_cone_assignment_keeps_the_hard_occupancy_and_thresholding(factor):
@@ -5478,7 +5478,7 @@ def test_epsilon_is_recorded_on_the_structure(mod, epsilon):
 
 @pytest.mark.parametrize("mod", GRAPH_MODULES)
 def test_epsilon_none_with_distances_raises(mod):
-    # the neighbour test is `pwDist <= epsilon`, which has no meaning for None
+    # the neighbor test is `pwDist <= epsilon`, which has no meaning for None
     d = np.array([[0.0, 1.0], [1.0, 0.0]])
     with pytest.raises(TypeError):
         mod.CreateGraphStruct(4, d, None)
@@ -5521,7 +5521,7 @@ def test_lower_triangular_adjacency_yields_the_edge(mod):
 
 
 @pytest.mark.parametrize("mod", GRAPH_MODULES)
-@pytest.mark.xfail(reason="BUG: nEdges counts tril entries including the diagonal, so a graph "
+@pytest.mark.xfail(reason="Bug. nEdges counts tril entries including the diagonal, so a graph "
                           "with self loops reports more edges than Edges holds", strict=False)
 def test_self_loops_do_not_inflate_the_edge_count(mod):
     loops = np.array([[1, 1], [1, 1]], dtype=int)
@@ -5628,7 +5628,7 @@ def test_get_subgraph_mutates_and_returns_the_input_graph(mod):
 
 
 @pytest.mark.parametrize("mod", GRAPH_MODULES)
-@pytest.mark.xfail(reason="BUG: subgraph nnMat is copied whole from the parent instead of being "
+@pytest.mark.xfail(reason="Bug. Subgraph nnMat is copied whole from the parent instead of being "
                           "restricted to the component's nodes", strict=False)
 def test_subgraph_nnmat_is_restricted_to_its_own_nodes(mod):
     g = mod.CreateGraphStruct(4, [], 0.5, csr_matrix(ADJ_TWO_COMPONENTS))
@@ -5637,7 +5637,7 @@ def test_subgraph_nnmat_is_restricted_to_its_own_nodes(mod):
 
 
 @pytest.mark.parametrize("mod", GRAPH_MODULES)
-@pytest.mark.xfail(reason="BUG: the explicit-node branch of getSubGraph indexes with the *args "
+@pytest.mark.xfail(reason="Bug. The explicit-node branch of getSubGraph indexes with the *args "
                           "tuple and reads the misspelled key 'MaxState'", strict=False)
 def test_get_subgraph_with_explicit_nodes(mod):
     g = mod.CreateGraphStruct(4, [], 0.5, csr_matrix(ADJ_PATH4))
@@ -5683,7 +5683,7 @@ def test_chord_length_relation_on_the_sphere(mod):
 
 
 @pytest.mark.parametrize("mod", GRAPH_MODULES)
-@pytest.mark.xfail(reason="BUG: the |u|^2 term is broadcast as a row instead of a column, so the "
+@pytest.mark.xfail(reason="Bug. The |u|^2 term is broadcast as a row instead of a column, so the "
                           "distance is only correct when every vector has unit norm", strict=False)
 def test_pairwise_distance_of_general_vectors_matches_cdist(mod):
     x = np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [2.0, 0.0, 0.0], [10.0, 0.0, 0.0]]).T
@@ -5905,12 +5905,12 @@ def test_op_matches_a_hand_built_epsilon_ball_graph(params_guard_geometry_graph)
 # FindCCGraphPruned.op
 # --------------------------------------------------------------------------------------
 def test_find_cc_graph_pruned_op_depends_on_missing_params_fields():
-    # documents that this entry point is stale: Params has neither of these members
+    # documents that this entry point is stale. Params has neither of these members
     assert not hasattr(params, "get_trash_list")
     assert not hasattr(params, "CC_graph_file")
 
 
-@pytest.mark.xfail(reason="BUG: FindCCGraphPruned.op calls params.get_trash_list() and reads "
+@pytest.mark.xfail(reason="Bug. FindCCGraphPruned.op calls params.get_trash_list() and reads "
                           "params.CC_graph_file, neither of which exists on Params", strict=False)
 def test_find_cc_graph_pruned_op_runs(tmp_path):
     out = str(tmp_path / "pruned.pkl")
@@ -5937,7 +5937,7 @@ matplotlib.use("Agg")
 # synthetic manifolds and reference implementations
 # --------------------------------------------------------------------------
 def sq_dists(X):
-    """Matrix of SQUARED euclidean distances -- the convention DMembeddingII wants."""
+    """Matrix of SQUARED euclidean distances, the convention DMembeddingII wants."""
     return ((X[:, None, :] - X[None, :, :]) ** 2).sum(-1)
 
 
@@ -5952,9 +5952,9 @@ def dense(l):
 
 
 def slaplacian_oracle(D2, sigma, alpha):
-    """Dense reference for slaplacian: Gaussian kernel, Coifman-Lafon alpha
-    normalisation by the outer product of the degrees, then symmetric
-    normalisation by the square root of the new degrees."""
+    """Dense reference for slaplacian. Gaussian kernel, Coifman-Lafon alpha
+    normalization by the outer product of the degrees, then symmetric
+    normalization by the square root of the new degrees."""
     W = np.exp(-D2 / sigma**2)
     d = W.sum(axis=0)
     if alpha != 1:
@@ -5966,7 +5966,7 @@ def slaplacian_oracle(D2, sigma, alpha):
 
 
 def line_points(n, noise=0.0, seed=0):
-    """Uniformly sampled unit segment; the intrinsic coordinate is arclength."""
+    """Uniformly sampled unit segment. The intrinsic coordinate is arclength."""
     s = np.linspace(0.0, 1.0, n)
     rng = np.random.default_rng(seed)
     y = noise * rng.standard_normal(n) if noise else np.zeros(n)
@@ -5974,13 +5974,13 @@ def line_points(n, noise=0.0, seed=0):
 
 
 def circle_points(n):
-    """Closed 1-manifold: the Laplacian spectrum comes in degenerate pairs."""
+    """Closed 1-manifold. The Laplacian spectrum comes in degenerate pairs."""
     t = np.linspace(0.0, 2.0 * np.pi, n, endpoint=False)
     return t, np.stack([np.cos(t), np.sin(t)], axis=1)
 
 
 def spiral_points(n):
-    """Archimedean spiral -- a 1D swiss roll.  Arclength is the true coordinate."""
+    """Archimedean spiral, a 1D swiss roll.  Arclength is the true coordinate."""
     th = np.sqrt(np.linspace(1.0, 9.0, n)) * np.pi
     X = np.stack([th * np.cos(th), th * np.sin(th)], axis=1)
     arclen = np.concatenate([[0.0], np.cumsum(np.linalg.norm(np.diff(X, axis=0), axis=1))])
@@ -6055,7 +6055,7 @@ def test_initialize_shapes_and_dtypes(nS, nN):
 
 @pytest.mark.parametrize("nN", [1, 2, 5, 9])
 def test_initialize_self_is_the_first_neighbour(nN):
-    # the diagonal is forced to -inf so every point is its own nearest neighbour,
+    # the diagonal is forced to -inf so every point is its own nearest neighbor,
     # and its distance is then reset to exactly zero
     nS = 12
     D = sq_dists(random_cloud(nS, 3, seed=1))
@@ -6079,7 +6079,7 @@ def test_initialize_matches_argsort_oracle(nN):
 
 
 def test_initialize_column_major_flattening():
-    # yInd1[i*nN + j] is the j-th nearest neighbour of point i
+    # yInd1[i*nN + j] is the j-th nearest neighbor of point i
     nS, nN = 9, 4
     D = sq_dists(random_cloud(nS, 2, seed=5))
     yInd1, yVal1 = DM.initialize(nS, nN, D)
@@ -6092,7 +6092,7 @@ def test_initialize_column_major_flattening():
 
 
 def test_initialize_mutates_diagonal_to_minus_inf():
-    # documented side effect: the caller's distance matrix is modified in place
+    # documented side effect. The caller's distance matrix is modified in place
     nS = 8
     D = sq_dists(random_cloud(nS, 2, seed=2))
     DM.initialize(nS, 3, D)
@@ -6153,7 +6153,7 @@ def _yColVal_call(yVal1, yInd1, nS, nN):
 
 @pytest.mark.parametrize("nS,nN", [(4, 3), (5, 2), (7, 5), (3, 3), (9, 1)])
 def test_get_yColVal_transposes_to_rank_major_order(nS, nN):
-    # input is (nN, nS) flattened column-major; output is the same block
+    # input is (nN, nS) flattened column-major. Output is the same block
     # flattened ROW-major, i.e. out[j*nS + i] is rank j of sample i
     mat = np.arange(1.0, nN * nS + 1.0).reshape(nN, nS)
     yVal1 = mat.flatten("F")
@@ -6217,7 +6217,7 @@ def test_get_yColVal_roundtrip_with_initialize(nS, nN):
 
 def test_get_yColVal_row_index_convention_of_op():
     # op builds yRow as ones((nN,1)) * range(nS) reshaped row-major, which pairs
-    # element m = j*nS + i with sample i -- matching get_yColVal's output order
+    # element m = j*nS + i with sample i, matching get_yColVal's output order
     nS, nN = 7, 4
     yRow = (np.ones((nN, 1)) * range(nS)).reshape(nS * nN, 1)
 
@@ -6320,7 +6320,7 @@ def test_construct_matrix_zero_values_give_zero_matrix(fn):
 
 
 def test_construct_matrix0_sums_duplicate_coordinates():
-    # csr_matrix accumulates duplicates before the symmetrisation happens
+    # csr_matrix accumulates duplicates before the symmetrization happens
     n = 3
     r = np.array([0, 0, 1])
     c = np.array([1, 1, 2])
@@ -6443,7 +6443,7 @@ def test_slaplacian_is_invariant_under_matched_rescaling(scale):
 
 
 def test_slaplacian_symmetrises_an_asymmetric_pattern():
-    # only the upper triangle is supplied; the final |l + l.T|/2 must fill it in
+    # only the upper triangle is supplied. The final |l + l.T|/2 must fill it in
     n = 8
     D2 = sq_dists(random_cloud(n, 2, seed=10))
     r, c = np.nonzero(np.triu(np.ones((n, n), bool)))
@@ -6455,7 +6455,7 @@ def test_slaplacian_symmetrises_an_asymmetric_pattern():
 
 
 def test_slaplacian_alpha_zero_skips_the_anisotropic_normalisation():
-    # d**0 == 1, so alpha=0 is the plain graph-Laplacian normalisation
+    # d**0 == 1, so alpha=0 is the plain graph-Laplacian normalization
     n = 9
     D2 = sq_dists(random_cloud(n, 2, seed=11))
     r, c = full_pattern(n)
@@ -6481,7 +6481,7 @@ def test_slaplacian_ignores_absent_entries(nnz_only):
     assert np.all(np.isfinite(A))
 
 
-@pytest.mark.xfail(reason="BUG: slaplacian leaves sigmaTune unbound when options.autotune > 0",
+@pytest.mark.xfail(reason="Bug. slaplacian leaves sigmaTune unbound when options.autotune > 0",
                    strict=False)
 def test_slaplacian_autotune_branch_does_not_crash():
     n = 6
@@ -6546,7 +6546,7 @@ def test_sembedding_eigenvectors_are_orthonormal():
 
 
 def test_sembedding_leading_eigenvector_has_constant_sign():
-    # Perron-Frobenius: the top eigenvector of a positive matrix is sign-definite
+    # Perron-Frobenius. The top eigenvector of a positive matrix is sign-definite
     n = 15
     D2 = sq_dists(random_cloud(n, 3, seed=6))
     r, c = full_pattern(n)
@@ -6613,7 +6613,7 @@ def test_sembedding_spectrum_is_bounded(sigma):
 
 
 # ==========================================================================
-# DMembeddingII.op -- contracts
+# DMembeddingII.op, contracts
 # ==========================================================================
 def test_op_returns_eight_items(line_run):
     _, _, out = line_run
@@ -6695,7 +6695,7 @@ def test_op_psi_has_zero_mean_against_mu(line_run):
 
 
 # ==========================================================================
-# DMembeddingII.op -- manifolds with known answers
+# DMembeddingII.op, manifolds with known answers
 # ==========================================================================
 def test_op_line_first_coordinate_is_monotone_in_arclength(line_run):
     s, _, (lamb, psi, *_) = line_run
@@ -6715,7 +6715,7 @@ def test_op_noisy_line_recovers_arclength(noise):
 
 
 def test_op_spiral_unrolls_to_arclength():
-    # a 1D swiss roll: with a tight kernel the leading coordinate orders the
+    # a 1D swiss roll. with a tight kernel the leading coordinate orders the
     # points exactly along the curve, not along the ambient chord
     n = 200
     arclen, X = spiral_points(n)
@@ -6742,7 +6742,7 @@ def test_op_circle_first_two_coordinates_trace_a_circle(circle_run):
 
 def test_op_circle_leading_pair_is_a_first_harmonic(circle_run):
     t, _, (lamb, psi, *_) = circle_run
-    # some rotation of (cos t, sin t): correlation with the harmonic subspace is 1
+    # some rotation of (cos t, sin t). Correlation with the harmonic subspace is 1
     basis = np.stack([np.cos(t), np.sin(t)], axis=1)
     basis -= basis.mean(0)
     q, _ = np.linalg.qr(basis)
@@ -6771,7 +6771,7 @@ def test_op_is_permutation_equivariant(seed):
 
 
 # ==========================================================================
-# DMembeddingII.op -- bandwidth (epsilon) selection
+# DMembeddingII.op, bandwidth (epsilon) selection
 # ==========================================================================
 def test_op_logEps_is_the_fixed_grid(line_run):
     _, _, (lamb, psi, sigma, mu, logEps, *_) = line_run
@@ -6809,7 +6809,7 @@ def test_op_tanh_fit_is_excellent_on_clean_manifolds(maker):
 
 @pytest.mark.parametrize("tune", [1, 2, 3, 5, 10])
 def test_op_sigma_is_linear_in_tune(tune):
-    # sigma = tune * sqrt(2 exp(-b/a)); the tanh fit does not see tune at all
+    # sigma = tune * sqrt(2 exp(-b/a)). The tanh fit does not see tune at all
     n = 100
     _, X = line_points(n)
     D2 = sq_dists(X)
@@ -6837,7 +6837,7 @@ def test_op_sigma_is_positive(cloud_run):
 
 @pytest.mark.parametrize("prefsigma", [1.0, 60000, 600000, -3.0])
 def test_op_prefsigma_argument_is_dead_code(prefsigma):
-    # `count` is initialised to 0 and never incremented, so the else-branch that
+    # `count` is initialized to 0 and never incremented, so the else-branch that
     # would use prefsigma is unreachable
     n = 60
     _, X = line_points(n)
@@ -6866,7 +6866,7 @@ def test_op_sigma_matches_the_fitted_inflection_point(line_run):
 
 
 # ==========================================================================
-# DMembeddingII.op -- sizing, neighbours and side effects
+# DMembeddingII.op, sizing, neighbors and side effects
 # ==========================================================================
 @pytest.mark.parametrize("nS", [5, 8, 12, 17, 25])
 def test_op_num_eigs_is_capped_by_the_sample_count(nS):
@@ -6891,7 +6891,7 @@ def test_op_honours_the_params_num_eigs_setting(params_guard_embedding, num_eigs
 
 @pytest.mark.parametrize("k", [10, 25, 60])
 def test_op_accepts_a_truncated_neighbour_list(k):
-    # k < nS keeps only the k nearest neighbours of each point
+    # k < nS keeps only the k nearest neighbors of each point
     n = 60
     _, X = line_points(n, noise=0.01, seed=0)
     lamb, psi, sigma, mu, *_ = DM.op(sq_dists(X), k, 3, 60000)
@@ -7159,7 +7159,7 @@ def test_trimming_op_matches_a_direct_embedding(tmp_path):
     assert out["sigma"] == pytest.approx(ref[2], rel=1e-12)
 
 
-@pytest.mark.xfail(reason="BUG: `if posPath == 0` is ambiguous for the ndarray posPath "
+@pytest.mark.xfail(reason="Bug. `if posPath == 0` is ambiguous for the ndarray posPath "
                           "the docstring advertises",
                    strict=False)
 def test_trimming_op_accepts_an_array_posPath(tmp_path):
@@ -7196,7 +7196,7 @@ def test_show_plot_builds_a_three_panel_figure(monkeypatch):
 # ==========================================================================
 @pytest.fixture
 def embed_project(params_guard_embedding, tmp_path):
-    """Minimal on-disk project: distance file + psi file for PrD 0."""
+    """Minimal on-disk project. distance file + psi file for PrD 0."""
     os.chdir(tmp_path)
     params_guard_embedding.project_name = "emb_test"
     prd = 0
@@ -7292,7 +7292,7 @@ def test_embedd_op_preserves_the_ind_array(embed_project):
     assert np.array_equal(out["ind"], np.arange(p.n))
 
 
-@pytest.mark.xfail(reason="BUG: embedd.op drops logEps/logSumWij/popt/R_squared from the psi "
+@pytest.mark.xfail(reason="Bug. embedd.op drops logEps/logSumWij/popt/R_squared from the psi "
                           "file, so the GUI bandwidth view KeyErrors after re-embedding",
                    strict=False)
 def test_embedd_op_keeps_the_bandwidth_fit_data(embed_project):
@@ -7312,7 +7312,7 @@ JJ = np.arange(1, 4)
 
 @pytest.fixture(autouse=True)
 def _guard_cwd():
-    """ManifoldEM singletons are process wide and some of them chdir; never leak that."""
+    """ManifoldEM singletons are process wide and some of them chdir. Never leak that."""
     cwd = os.getcwd()
     yield
     os.chdir(cwd)
@@ -7397,7 +7397,7 @@ def test_r_p_honours_the_nDim_field(nd):
 
 @pytest.mark.parametrize("bad", [0.3, np.array([0.1, 0.2, 0.3]), np.array([0.1, 0.2])])
 def test_r_p_requires_a_column_vector_of_candidates(bad):
-    """A bare scalar or 1-D tau collapses the (N, nDim) error array; sum(axis=1) then fails."""
+    """A bare scalar or 1-D tau collapses the (N, nDim) error array. sum(axis=1) then fails."""
     prm = random_params(0)
     with pytest.raises((ValueError, IndexError)):
         _R_p(bad, prm)
@@ -7456,7 +7456,7 @@ def test_solve_tau_is_confined_to_the_unit_interval(seed):
 
 @pytest.mark.parametrize("seed", range(10))
 def test_solve_is_the_global_minimiser_on_the_unit_interval(seed):
-    """Brute-force grid oracle: the analytic root finder must not be beaten anywhere in [0, 1]."""
+    """Brute-force grid oracle. The analytic root finder must not be beaten anywhere in [0, 1]."""
     prm = random_params(seed)
     tau = _solve_d_R_d_tau_p_3D(prm)
     grid = np.linspace(0.0, 1.0, 20001).reshape(-1, 1)
@@ -7473,14 +7473,14 @@ def test_solve_recovers_tau_exactly_for_on_model_data(tau0):
 
 def test_solve_with_all_zero_amplitudes_returns_zero():
     """Every polynomial coefficient vanishes, np.roots gives nothing, so only {0, 1} remain
-    and they tie; argmin picks the first, i.e. tau = 0."""
+    and they tie. argmin picks the first, i.e. tau = 0."""
     prm = make_params(np.zeros(3), np.zeros(3), np.array([[1.0, 2.0, 3.0]]))
     assert _solve_d_R_d_tau_p_3D(prm)[0] == 0.0
 
 
 @pytest.mark.parametrize("seed", range(5))
 def test_solve_handles_a_vanishing_leading_coefficient(seed):
-    """a3 = 0 drops the quintic to a cubic; np.roots trims the leading zeros."""
+    """a3 = 0 drops the quintic to a cubic. np.roots trims the leading zeros."""
     prm = random_params(seed)
     prm.a[2] = 0.0
     tau = _solve_d_R_d_tau_p_3D(prm)
@@ -7520,13 +7520,13 @@ def test_solve_is_invariant_under_common_offset(shift):
 @pytest.mark.parametrize("sign,expected", [(1.0, 0.0), (-1.0, 1.0)])
 def test_solve_falls_back_to_an_endpoint_when_no_root_is_admissible(sign, expected):
     """With a = (1, 0, 0) and |x1 - b1| = 5 the stationary point is beta = +/-5, which is
-    rejected by |beta| <= 1; the best remaining candidate is the nearer endpoint."""
+    rejected by |beta| <= 1. The best remaining candidate is the nearer endpoint."""
     prm = make_params([1.0, 0.0, 0.0], np.zeros(3), [[5.0 * sign, 0.0, 0.0]])
     assert _solve_d_R_d_tau_p_3D(prm)[0] == expected
 
 
 # ---------------------------------------------------------------------------
-# _get_fit_params : polynomial initialisation of {a, b} plus a first tau sweep
+# _get_fit_params : polynomial initialization of {a, b} plus a first tau sweep
 # ---------------------------------------------------------------------------
 
 
@@ -7549,8 +7549,8 @@ def test_get_fit_params_shapes_and_types():
     (np.array([1.2, 0.4, 0.15]), np.array([0.3, -0.1, 0.2])),
 ])
 def test_get_fit_params_initialisation_is_already_exact_on_model_data(a_true, b_true):
-    """x_2 is quadratic and x_3 cubic in x_1, so the polynomial initialiser is not a guess
-    at all for noiseless data: it reproduces {a, b} to machine precision."""
+    """x_2 is quadratic and x_3 cubic in x_1, so the polynomial initializer is not a guess
+    at all for noiseless data. It reproduces {a, b} to machine precision."""
     psi = synth(a_true, b_true, np.linspace(0.0, 1.0, 50))
     _, prm = _get_fit_params(psi)
     assert np.allclose(prm.a, a_true, atol=1e-8)
@@ -7620,7 +7620,7 @@ def test_get_fit_params_does_not_mutate_psi():
 
 
 # ---------------------------------------------------------------------------
-# fit_1D_open_manifold_3D : the alternating {a, b} / {tau} minimisation
+# fit_1D_open_manifold_3D : the alternating {a, b} / {tau} minimization
 # ---------------------------------------------------------------------------
 
 
@@ -7646,7 +7646,7 @@ def test_fit_round_trip_reconstruction_is_exact(a_true, b_true):
 ])
 def test_fit_recovers_the_generating_coefficients_up_to_the_reflection(a_true, b_true):
     """tau -> 1 - tau flips the sign of a1 and a3 while leaving the data unchanged, so the
-    fit is only identifiable up to that reflection; the offsets b are not."""
+    fit is only identifiable up to that reflection. The offsets b are not."""
     tau_true = np.linspace(0.0, 1.0, 40)
     a, b, _ = fit_1D_open_manifold_3D(synth(a_true, b_true, tau_true))
     mirrored = a_true * np.array([-1.0, 1.0, -1.0])
@@ -7679,8 +7679,8 @@ def test_fit_tau_is_confined_to_the_unit_interval_even_off_model(seed):
     np.array([0.8, 0.2, 0.05]),
 ])
 def test_fit_tau_is_strictly_monotone_in_the_true_tau(a_true):
-    """The generating tau is an increasing sweep; the recovered tau must be a monotone
-    reparameterisation of it (increasing, or decreasing under the reflection)."""
+    """The generating tau is an increasing sweep. The recovered tau must be a monotone
+    reparameterization of it (increasing, or decreasing under the reflection)."""
     tau_true = np.linspace(0.0, 1.0, 45)
     _, _, tau = fit_1D_open_manifold_3D(synth(a_true, np.array([0.1, -0.2, 0.05]), tau_true))
     d = np.diff(tau.ravel())
@@ -7751,7 +7751,7 @@ def _run_fit_recording_iterations(psi, tweak=None):
 
 @pytest.mark.parametrize("seed", [0, 1, 2])
 def test_fit_residual_never_increases_across_outer_iterations(seed):
-    """Alternating minimisation: the {a, b} step is an exact least squares solve and the
+    """Alternating minimization. The {a, b} step is an exact least squares solve and the
     tau step is an exact per-point minimiser, so R must be monotone non-increasing."""
     rng = np.random.default_rng(seed)
     tau_true = np.sort(rng.uniform(0.0, 1.0, 70))
@@ -7771,7 +7771,7 @@ def test_fit_terminates_well_within_max_iterations():
     assert 1 <= len(records) < 100
 
 
-@pytest.mark.xfail(reason="BUG: tau_old = tau aliases the array that is then mutated in place, "
+@pytest.mark.xfail(reason="Bug. tau_old = tau aliases the array that is then mutated in place, "
                    "so delta_tau is identically 0 and the tau convergence test is vacuous",
                    strict=False)
 def test_fit_delta_tau_convergence_criterion_is_actually_checked():
@@ -7866,7 +7866,7 @@ def test_fit_is_equivariant_under_rescaling(scale):
 
 
 def test_fit_on_constant_data_is_degenerate_but_consistent():
-    """A/b are wildly under determined here; lstsq takes the minimum norm branch, and the
+    """A/b are wildly under determined here. Lstsq takes the minimum norm branch, and the
     reconstruction at tau = 0 still reproduces the data exactly."""
     psi = np.ones((10, 3))
     a, b, tau = fit_1D_open_manifold_3D(psi.copy())
@@ -8055,7 +8055,7 @@ def object_array(list_of_lists):
 
 
 def make_prds(image_index_lists, thres_ids, thres_high=1000):
-    """Hand-built store: no disk, no star file, no tessellation."""
+    """Hand-built store. No disk, no star file, no tessellation."""
     prds = _ProjectionDirections()
     prds.image_indices_full = object_array(image_index_lists)
     prds.occupancy_full = np.array([len(a) for a in image_index_lists], dtype=int)
@@ -8069,7 +8069,7 @@ def make_prds(image_index_lists, thres_ids, thres_high=1000):
 
 
 def write_star(path, n, seed=0):
-    """Minimal old-format RELION star file: header block then n rows."""
+    """Minimal old-format RELION star file. Header block then n rows."""
     rng = np.random.default_rng(seed)
     cols = [
         "rlnAngleRot",
@@ -8261,7 +8261,7 @@ def test_sense_to_index_is_a_plain_int(member):
 
 
 def test_sense_to_index_is_not_the_value():
-    # REV.value is -1 but its index is 1; conflating the two flips the trajectory sense
+    # REV.value is -1 but its index is 1. Conflating the two flips the trajectory sense
     assert Sense.REV.value != Sense.REV.to_index()
 
 
@@ -8400,7 +8400,7 @@ def test_prdinfo_repr_is_one_line_per_scalar_field():
 
 
 def test_prdinfo_equality_is_ambiguous_for_distinct_arrays():
-    # dataclass __eq__ compares field tuples; numpy arrays make that a truth-value error
+    # dataclass __eq__ compares field tuples. numpy arrays make that a truth-value error
     with pytest.raises(ValueError):
         _ = make_info() == make_info()
 
@@ -8491,7 +8491,7 @@ def test_fresh_store_microscope_origin_is_a_pair_of_arrays():
 
 @pytest.mark.parametrize("low,high", [(1, 10), (100, 2000), (0, 0), (7, 7)])
 def test_fresh_store_snapshots_the_thresholds_from_params(low, high):
-    # the thresholds are copied at construction; a later params change is what triggers a rebuild
+    # the thresholds are copied at construction. a later params change is what triggers a rebuild
     params.prd_thres_low = low
     params.prd_thres_high = high
     prds = _ProjectionDirections()
@@ -8731,7 +8731,7 @@ def test_get_defocus_by_prd_is_truncated_by_thres_high():
 
 
 @pytest.mark.xfail(
-    reason="BUG: thresholded_image_indices assumes a ragged 1-D object array, but "
+    reason="Bug. thresholded_image_indices assumes a ragged 1-D object array, but "
     "bin_and_threshold returns a rectangular 2-D object array when every bin holds "
     "the same number of images",
     strict=False,
@@ -8782,7 +8782,7 @@ def test_get_prd_data_accepts_numpy_integers(integral):
 
 
 @pytest.mark.xfail(
-    reason="BUG: get_prd_data/PrdData bound-check against n_bins (bins on S2) instead of "
+    reason="Bug. get_prd_data/PrdData bound-check against n_bins (bins on S2) instead of "
     "n_thresholded (actual projection directions), so an index in between raises a raw "
     "IndexError instead of the documented ValueError",
     strict=False,
@@ -8954,7 +8954,7 @@ def test_update_writes_both_caches(tmp_path):
 
 
 def test_update_doubles_the_defocus_array(tmp_path):
-    # legacy "augmentation": (U+V)/2 is concatenated with itself, so defocus is twice as
+    # legacy "augmentation". (U+V)/2 is concatenated with itself, so defocus is twice as
     # long as the image list even though only the first half is ever indexed
     configure_project(tmp_path)
     prds = data_store.get_prds()
@@ -9090,7 +9090,7 @@ def test_rebuild_clears_anchors_and_trash(tmp_path):
 
 
 @pytest.mark.xfail(
-    reason="BUG: update() clears anchors and trash_ids on a rebuild but leaves reembed_ids, "
+    reason="Bug. update() clears anchors and trash_ids on a rebuild but leaves reembed_ids, "
     "so stale prd indices survive a retessellation",
     strict=False,
 )
@@ -9231,7 +9231,7 @@ def test_prddata_bin_center_is_the_thresholded_bin(prd_project, prd_index):
 
 @pytest.mark.parametrize("prd_index", [0, 1, 2])
 def test_prddata_occupancy_can_exceed_the_kept_image_count(prd_project, prd_index):
-    # occupancy is the full bin population; raw_image_indices is capped at thres_high
+    # occupancy is the full bin population. raw_image_indices is capped at thres_high
     pd = data_store.get_prd_data(prd_index)
     assert pd.info.occupancy == prd_project.occupancy[prd_index]
     assert len(pd.info.raw_image_indices) == min(
@@ -9486,7 +9486,7 @@ def test_reflection_matrix_fixes_the_mirror_plane(seed):
 @pytest.mark.parametrize('scale', [1.0, 3.7, -2.0])
 def test_reflection_matrix_is_insensitive_to_normal_length(scale):
     point, normal = np.array([0.2, -0.4, 1.0]), np.array([0.3, 0.5, -0.8])
-    # the normal is normalised internally, and flipping its sign mirrors about
+    # the normal is normalized internally, and flipping its sign mirrors about
     # the same plane
     assert np.allclose(tr.reflection_matrix(point, normal), tr.reflection_matrix(point, scale * normal))
 
@@ -9525,7 +9525,7 @@ ROT_CASES = [
 
 @pytest.mark.parametrize('angle,direction', ROT_CASES)
 def test_rotation_matrix_matches_scipy_rotvec(angle, direction):
-    # Rodrigues: the rotation vector is angle * unit(direction)
+    # Rodrigues. The rotation vector is angle * unit(direction)
     axis = np.asarray(direction, dtype=float)
     axis = axis / np.linalg.norm(axis)
     M = tr.rotation_matrix(angle, direction)
@@ -10068,7 +10068,7 @@ def test_euler_from_matrix_matches_scipy_angles(axes):
 @pytest.mark.parametrize('axes', ODD_REPEATED)
 def test_euler_from_matrix_odd_parity_repeated_axes_pick_the_other_branch(axes):
     # for the six odd parity sequences with a repeated axis the library returns
-    # a negated middle angle relative to scipy: an equally valid triplet for
+    # a negated middle angle relative to scipy. An equally valid triplet for
     # the same rotation, not a disagreement about the rotation itself
     R0 = _rand_rot(0)
     mine = np.array(tr.euler_from_matrix(R0, axes))
@@ -10113,7 +10113,7 @@ def test_euler_from_matrix_rejects_unknown_axes(bad):
         tr.euler_from_matrix(np.identity(4), bad)
 
 
-@pytest.mark.xfail(reason="BUG: euler_matrix does not lowercase the axes string, unlike euler_from_matrix "
+@pytest.mark.xfail(reason="Bug. euler_matrix does not lowercase the axes string, unlike euler_from_matrix "
                    "and quaternion_from_euler, so 'SXYZ' raises KeyError on the forward map only",
                    strict=False)
 def test_euler_axes_string_case_handling_is_symmetric():
@@ -10168,8 +10168,8 @@ def test_quaternion_about_axis_normalises_the_axis():
 
 def test_quaternion_about_axis_with_a_zero_axis_drops_the_vector_part():
     # a degenerate axis leaves the imaginary part at zero, so the result is
-    # [cos(angle/2), 0, 0, 0]: NOT a unit quaternion, though quaternion_matrix
-    # renormalises it back to the identity rotation
+    # [cos(angle/2), 0, 0, 0]. NOT a unit quaternion, though quaternion_matrix
+    # renormalizes it back to the identity rotation
     q = tr.quaternion_about_axis(0.7, [0, 0, 0])
     assert np.allclose(q, [math.cos(0.35), 0.0, 0.0, 0.0])
     assert not np.isclose(tr.vector_norm(q), 1.0)
@@ -10348,7 +10348,7 @@ def test_quaternion_slerp_endpoints():
     q1 = tr.random_quaternion(rng.random(3))
     assert np.allclose(tr.quaternion_slerp(q0, q1, 0.0), q0)
     assert np.allclose(tr.quaternion_slerp(q0, q1, 1.0), q1)
-    # the endpoints are returned normalised, so a scaled input comes back unit
+    # the endpoints are returned normalized, so a scaled input comes back unit
     assert np.allclose(tr.quaternion_slerp([2.0, 0.0, 0.0, 0.0], q1, 0.0), [1, 0, 0, 0])
 
 
@@ -10367,11 +10367,11 @@ def test_quaternion_slerp_takes_the_short_way_by_default():
     q0 = np.array([1.0, 0.0, 0.0, 0.0])
     q1 = tr.quaternion_about_axis(0.6, axis)
     # q and -q are the same rotation, and with shortestpath the interpolation
-    # is insensitive to that sign: half way is a 0.3 rad turn either way
+    # is insensitive to that sign. half way is a 0.3 rad turn either way
     assert tr.is_same_quaternion(tr.quaternion_slerp(q0, q1, 0.5), tr.quaternion_about_axis(0.3, axis))
     assert tr.is_same_quaternion(tr.quaternion_slerp(q0, -q1, 0.5), tr.quaternion_about_axis(0.3, axis))
     # without shortestpath the negated endpoint drags the path the long way
-    # round the great circle: half of a 2*pi - 0.6 turn, taken backwards
+    # round the great circle. half of a 2*pi - 0.6 turn, taken backwards
     long_way = tr.quaternion_slerp(q0, -q1, 0.5, shortestpath=False)
     assert not tr.is_same_quaternion(long_way, tr.quaternion_about_axis(0.3, axis))
     assert tr.is_same_quaternion(long_way, tr.quaternion_about_axis(-(math.pi - 0.3), axis))
@@ -10404,7 +10404,7 @@ def test_quaternion_slerp_extrapolates_past_one(fraction):
     assert tr.is_same_quaternion(q, tr.quaternion_about_axis(0.6 * fraction, axis))
 
 
-@pytest.mark.xfail(reason='BUG: quaternion_slerp with an odd spin normalises by sin(theta + spin*pi) instead of '
+@pytest.mark.xfail(reason='Bug. quaternion_slerp with an odd spin normalizes by sin(theta + spin*pi) instead of '
                    "Shoemake's sin(theta), so the result leaves the unit sphere",
                    strict=False)
 @pytest.mark.parametrize('fraction', [0.25, 0.5])
@@ -10544,7 +10544,7 @@ def test_unit_vector_does_not_mutate_its_input():
     assert np.allclose(v, [3.0, 4.0])
 
 
-@pytest.mark.xfail(reason='BUG: unit_vector(v, axis=0, out=...) raises ValueError for 1-D input because the '
+@pytest.mark.xfail(reason='Bug. unit_vector(v, axis=0, out=...) raises ValueError for 1-D input because the '
                    'length is expanded to shape (1, 1) and no longer broadcasts into the (n,) output',
                    strict=False)
 def test_unit_vector_one_dimensional_with_out_and_axis():
@@ -10661,7 +10661,7 @@ def test_concatenate_matrices_applies_the_rightmost_factor_first():
     'm0,m1,expected',
     [
         (np.identity(4), np.identity(4), True),
-        (np.identity(4), 2.0 * np.identity(4), True),  # normalised by the [3, 3] element
+        (np.identity(4), 2.0 * np.identity(4), True),  # normalized by the [3, 3] element
         (np.identity(4), tr.rotation_matrix(0.3, [0, 0, 1]), False),
         (tr.translation_matrix([1.0, 2.0, 3.0]), tr.translation_matrix([1.0, 2.0, 3.0]), True),
         (tr.translation_matrix([1.0, 2.0, 3.0]), tr.translation_matrix([1.0, 2.0, 3.1]), False),
@@ -10802,7 +10802,7 @@ def test_epsilon_is_a_few_machine_epsilons():
 
 
 def test_module_is_self_contained():
-    # the vendored library must not reach back into ManifoldEM: nothing in the
+    # the vendored library must not reach back into ManifoldEM. Nothing in the
     # package imports it, and it imports nothing from the package
     with open(tr.__file__, 'r') as handle:
         source = handle.read()
@@ -10977,7 +10977,7 @@ def test_computeDerivatives_x_ramp_exact(shift):
     inner = (slice(2, -2), slice(2, -2))
     assert np.allclose(fx[inner], 1.0, atol=1e-5)
     assert np.allclose(fy[inner], 0.0, atol=1e-5)
-    # NOTE: classical Horn-Schunck defines It = I2 - I1; this code returns I1 - I2,
+    # NOTE. Classical Horn-Schunck defines It = I2 - I1. This code returns I1 - I2,
     # so ft comes out as +shift for a +shift translation.
     assert np.allclose(ft[inner], shift, atol=1e-5)
 
@@ -11036,7 +11036,7 @@ def test_hs_op_recovers_translation_magnitude(shift, axis):
 
 
 @pytest.mark.xfail(
-    reason="BUG: computeDerivatives returns ft = I1 - I2 (classical HS is I2 - I1), "
+    reason="Bug. computeDerivatives returns ft = I1 - I2 (classical HS is I2 - I1), "
            "so hornschunck_simple.op returns flow with the opposite sign",
     strict=False,
 )
@@ -11108,7 +11108,7 @@ def test_hs_op_output_shape_and_dtype():
 
 
 # ======================================================================================
-# MRFBeliefPropagation.py -- Normalize / max_product / graph indexing
+# MRFBeliefPropagation.py, Normalize / max_product / graph indexing
 # ======================================================================================
 
 
@@ -11151,7 +11151,7 @@ def test_normalize_dim2_raises_on_nonsquare():
         BP.Normalize(np.arange(6, dtype=float).reshape(2, 3), 2)
 
 
-@pytest.mark.xfail(reason="BUG: Normalize(M, 2) divides column j by row-sum j instead of "
+@pytest.mark.xfail(reason="Bug. Normalize(M, 2) divides column j by row-sum j instead of "
                           "normalizing rows (np.divide broadcasts along the wrong axis)",
                    strict=False)
 def test_normalize_dim2_should_normalize_rows():
@@ -11275,7 +11275,7 @@ def test_edge_index_count_equals_node_degree(adj, degrees):
 
 
 # ======================================================================================
-# MRFBeliefPropagation.py -- BPalg lifecycle
+# MRFBeliefPropagation.py, BPalg lifecycle
 # ======================================================================================
 
 
@@ -11313,7 +11313,7 @@ def test_initializeBPmessage_buffers_are_independent():
     assert alg["init_message"][0, 0] != 99.0
 
 
-@pytest.mark.xfail(reason="BUG: initializeBPmessage eqnStates=0 branch is dead code "
+@pytest.mark.xfail(reason="Bug. initializeBPmessage eqnStates=0 branch is dead code "
                           "(np.repmat does not exist, G['nState'] is misspelled, "
                           "and unif_msg is unbound)",
                    strict=False)
@@ -11417,7 +11417,7 @@ def test_updateBPmessage_only_touches_the_target_column():
 
 
 # ======================================================================================
-# MRFBeliefPropagation.py -- full BP on hand-checkable graphs
+# MRFBeliefPropagation.py, full BP on hand-checkable graphs
 # ======================================================================================
 
 
@@ -11619,8 +11619,8 @@ def test_bp_output_shapes():
     assert alg["nodeBel"] is nodeBel and alg["edgeBel"] is edgeBel
 
 
-@pytest.mark.xfail(reason="BUG: ComputeBelief uses np.dot(Beli, Belj.T) on two 1-D arrays, "
-                          "which is an inner product; it needs np.outer, so edgeBelief "
+@pytest.mark.xfail(reason="Bug. ComputeBelief uses np.dot(Beli, Belj.T) on two 1-D arrays, "
+                          "which is an inner product. It needs np.outer, so edgeBelief "
                           "collapses to the normalized edge potential",
                    strict=False)
 @pytest.mark.parametrize("seed", [40, 41])
@@ -11635,7 +11635,7 @@ def test_bp_edge_belief_is_the_pairwise_marginal(seed):
 
 
 def test_bp_edge_belief_marginalizes_to_the_node_belief():
-    # a true pairwise belief must sum down to the node belief; it does not here
+    # a true pairwise belief must sum down to the node belief. It does not here
     S = 3
     G = make_graph([[0, 1], [1, 0]], S)
     rng = np.random.default_rng(42)
@@ -11781,7 +11781,7 @@ def test_mrf_op_empty_array_measure_is_treated_as_missing(params_sandbox_cc_algo
 
 def test_mrf_op_edge_potential_block_structure(params_sandbox_cc_algorithms):
     """The (2P x 2P) edge potential is [[A, B], [B, A]] where the psi-measure matrix is
-    [A | B]: the second block row is the same measure with the two senses swapped."""
+    [A | B]. The second block row is the same measure with the two senses swapped."""
     params.num_psi = 3
     P = 3
     G = make_graph([[0, 1], [1, 0]], 2 * P)
@@ -11815,7 +11815,7 @@ def test_mrf_op_edge_potential_is_strictly_positive(params_sandbox_cc_algorithms
 
 
 def test_mrf_op_potentials_feed_belief_propagation(params_sandbox_cc_algorithms):
-    """End-to-end sanity: the generated potentials are a legal BP input."""
+    """End-to-end sanity. The generated potentials are a legal BP input."""
     params.num_psi = 2
     G = make_graph([[0, 1, 0], [1, 0, 1], [0, 1, 0]], 4)
     rng = np.random.default_rng(61)
@@ -11975,7 +11975,7 @@ def test_SelectFlowVec_is_idempotent_on_a_fresh_copy():
     assert np.allclose(again["Vx"], first["Vx"])
 
 
-@pytest.mark.xfail(reason="BUG: SelectFlowVec aliases (never copies) the input arrays, so it "
+@pytest.mark.xfail(reason="Bug. SelectFlowVec aliases (never copies) the input arrays, so it "
                           "destroys the caller's FlowVec dict in place",
                    strict=False)
 def test_SelectFlowVec_does_not_mutate_its_input():
@@ -12174,7 +12174,7 @@ def test_figurePlot_opens_a_figure_and_leaves_it_open():
     plt.close(new.pop())
 
 
-@pytest.mark.xfail(reason="BUG: saveImage builds `params.out_dir + 'CC/tmp_figs/'` without a "
+@pytest.mark.xfail(reason="Bug. saveImage builds `params.out_dir + 'CC/tmp_figs/'` without a "
                           "path separator, so it targets output/<proj>CC/tmp_figs",
                    strict=False)
 def test_saveImage_writes_into_the_project_cc_directory(params_sandbox_cc_algorithms):
@@ -12372,7 +12372,7 @@ def test_ComputeEdgeMeasurePairWisePsiAll_writes_the_edge_measure_file(params_sa
     CME.ComputeEdgeMeasurePairWisePsiAll([0, 1, 0], G, 95)
 
     out = myio.fin1(params.get_CC_meas_file(0, 0, 1))
-    # [FWD | REV] blocks stacked horizontally: num_psi x 2*num_psi
+    # [FWD | REV] blocks stacked horizontally. num_psi x 2*num_psi
     assert out["measureOFCurrNbrEdge"].shape == (params.num_psi, 2 * params.num_psi)
     assert out["badNodesPsisBlock"].shape == (G["nNodes"], params.num_psi)
     assert np.all(out["measureOFCurrNbrEdge"] > 0.0)
@@ -12463,7 +12463,7 @@ def _choice_help(name: str) -> str:
 
 
 def _write_toml(path, **overrides):
-    # particle_diameter must be non-zero: params.asdict() evaluates the `sh` property
+    # particle_diameter must be non-zero. params.asdict() evaluates the `sh` property
     # (resolution / diameter), which has no zero guard, so params.save() on a project that
     # never set a diameter raises ZeroDivisionError.
     payload = {"params": {"particle_diameter": 160.0, "ms_estimated_resolution": 3.0, **overrides}}
@@ -12473,7 +12473,7 @@ def _write_toml(path, **overrides):
 
 
 # The nine pipeline subcommands, with the ProjectLevel value that prefixes their help string.
-# Note level 6 (PRD_SELECTION) has no subcommand: it is a GUI-only interactive step, which is
+# Note level 6 (PRD_SELECTION) has no subcommand. It is a GUI-only interactive step, which is
 # why the numbering in the help output jumps from 5 to 7.
 PIPELINE = [
     ("init", 0, "Initialize new project"),
@@ -12522,7 +12522,7 @@ INIT_PARAMS = [
     ("nlsa_fps", float, 5.0, "NLSA_MOVIE"),
 ]
 
-# params exposed by each stage subparser (first-appearance rule: a param is offered only on the
+# params exposed by each stage subparser (first-appearance rule. a param is offered only on the
 # earliest level it affects, which is why con_order_range shows up on psi-analysis but not on
 # probability-landscape or trajectory even though it affects all three)
 LEVEL_PARAMS = {
@@ -12600,7 +12600,7 @@ def test_utility_help_has_no_numeric_prefix():
 
 
 def test_prd_selection_level_has_no_subcommand():
-    # ProjectLevel.PRD_SELECTION == 6 is interactive-only; no "6:" appears in the help
+    # ProjectLevel.PRD_SELECTION == 6 is interactive-only. No "6:" appears in the help
     assert ProjectLevel.PRD_SELECTION.value == 6
     helps = [_choice_help(n) for n in PIPELINE_NAMES]
     assert not any(h.startswith("6:") for h in helps)
@@ -12612,7 +12612,7 @@ def test_subcommand_appears_in_top_level_help(name):
 
 
 def test_readme_documents_calc_probabilities_but_code_registers_probability_landscape():
-    # DOC DRIFT: README.md shows `calc-probabilities` for stage 8; the code registers
+    # DOC DRIFT. README.md shows `calc-probabilities` for stage 8. The code registers
     # `probability-landscape`. Assert the real one, and that the documented alias is absent.
     choices = _subaction(cli.get_parser()).choices
     assert "probability-landscape" in choices
@@ -12668,7 +12668,7 @@ def test_ncpu_rejects_non_integer():
 
 @pytest.mark.parametrize("name", PIPELINE_NAMES)
 def test_ncpu_is_not_repeated_on_subparsers(name):
-    # -n must precede the subcommand; it is only registered on the top-level parser
+    # -n must precede the subcommand. It is only registered on the top-level parser
     assert "--ncpu" not in _opts(_sub(name))
 
 
@@ -12768,7 +12768,7 @@ def test_init_overwrite_takes_no_value():
 
 
 def test_init_takes_no_positional_input_file():
-    # every other stage takes the toml as a positional; init creates it instead
+    # every other stage takes the toml as a positional. init creates it instead
     assert "input_file" not in _dests(_sub("init"))
     with pytest.raises(SystemExit):
         cli.get_parser().parse_args(["init", "-p", "p", "-s", "1", "-d", "2", "-r", "3", "extra.toml"])
@@ -12850,7 +12850,7 @@ def test_init_param_value_parsing(name, value, expected):
 
 def test_list_typed_param_is_downgraded_to_string():
     # tess_hemisphere_vec is list[float] in params, but argparse cannot build a list from a
-    # single token, so add_relevant_params rewrites the type to str; set_params re-parses it.
+    # single token, so add_relevant_params rewrites the type to str. set_params re-parses it.
     action = _opts(_sub("init"))["--tess_hemisphere_vec"]
     assert action.type is str
     assert action.default == [1.0, 0.0, 0.0]  # the default is still the *list*, not a string
@@ -12867,12 +12867,12 @@ def test_default_help_formatter_shows_defaults():
 @pytest.mark.parametrize("name", ["ncpu", "num_part", "rad", "width_1D", "states_per_coord",
                                   "traj_name", "num_eigs", "opt_mask_type"])
 def test_non_level_params_absent_from_init(name):
-    # ncpu is user-facing but has an empty `affects` list, so it never becomes a --param flag;
+    # ncpu is user-facing but has an empty `affects` list, so it never becomes a --param flag.
     # it is the top-level -n instead. The rest are not user params at all.
     assert f"--{name}" not in _opts(_sub("init"))
 
 
-@pytest.mark.xfail(reason="BUG: `rad` Annotated is malformed - user_param/affects are passed as "
+@pytest.mark.xfail(reason="Bug. `rad` Annotated is malformed - user_param/affects are passed as "
                           "extra Annotated metadata instead of ParamInfo args, so rad is never "
                           "exposed on the CLI", strict=False)
 def test_rad_is_declared_a_user_param():
@@ -12881,7 +12881,7 @@ def test_rad_is_declared_a_user_param():
     assert ProjectLevel.MANIFOLD_ANALYSIS in info.affects
 
 
-@pytest.mark.xfail(reason="BUG: `rad` Annotated is malformed, so --rad is missing from "
+@pytest.mark.xfail(reason="Bug. `rad` Annotated is malformed, so --rad is missing from "
                           "manifold-analysis", strict=False)
 def test_rad_flag_on_manifold_analysis():
     assert "--rad" in _opts(_sub("manifold-analysis"))
@@ -12934,7 +12934,7 @@ def test_nlsa_tune_offered_only_at_first_affected_level():
 
 @pytest.mark.parametrize("name,expected", sorted(LEVEL_PARAMS.items()))
 def test_stage_param_help_is_not_level_tagged(name, expected):
-    # only init prefixes each param with its level; the stage parsers use the bare description
+    # only init prefixes each param with its level. The stage parsers use the bare description
     opts = _opts(_sub(name))
     for param in expected:
         _, info = params.get_param_info(param)
@@ -12978,7 +12978,7 @@ def test_prds_default_none(name):
 def test_prds_round_trips_through_parse_prd_list(name):
     args = cli.get_parser().parse_args([name, "--prds", "3,1,2", "params_demo.toml"])
     assert args.prds == "3,1,2"
-    # order is preserved verbatim; the list is not sorted or deduplicated
+    # order is preserved verbatim. The list is not sorted or deduplicated
     assert cli._parse_prd_list(args.prds) == [3, 1, 2]
 
 
@@ -13063,7 +13063,7 @@ def test_denoise_rejects_non_integer_window():
         cli.get_parser().parse_args(["utility", "denoise", "params_demo.toml", "-k", "wide"])
 
 
-@pytest.mark.xfail(reason="BUG: the nested `utility` subparsers reuse dest='command', so a bare "
+@pytest.mark.xfail(reason="Bug. The nested `utility` subparsers reuse dest='command', so a bare "
                           "`manifold-cli utility` overwrites command with None and main() dies "
                           "with KeyError(None) instead of printing help", strict=False)
 def test_bare_utility_keeps_its_own_command_name():
@@ -13136,7 +13136,7 @@ def test_args_to_dict_on_real_parsed_args(name):
 
 
 # ---------------------------------------------------------------------------------------------
-# load_state: project-name derivation
+# load_state. Project-name derivation
 # ---------------------------------------------------------------------------------------------
 
 def test_load_state_is_a_noop_for_init():
@@ -13180,7 +13180,7 @@ def test_load_state_without_params_prefix_raises_indexerror(workdir):
         cli.load_state(Namespace(command="threshold", input_file=str(path), ncpu=1))
 
 
-@pytest.mark.xfail(reason="BUG: load_state splits the whole path on 'params_', so a directory "
+@pytest.mark.xfail(reason="Bug. load_state splits the whole path on 'params_', so a directory "
                           "containing that substring leaks into the derived project name",
                    strict=False)
 def test_project_name_ignores_params_in_directory_name(workdir, monkeypatch):
@@ -13194,7 +13194,7 @@ def test_project_name_ignores_params_in_directory_name(workdir, monkeypatch):
 
 
 # ---------------------------------------------------------------------------------------------
-# load_state: side effects
+# load_state. Side effects
 # ---------------------------------------------------------------------------------------------
 
 def test_load_state_loads_values_chdirs_and_saves(workdir):
@@ -13249,12 +13249,12 @@ def test_load_state_restores_project_level_enum(workdir, monkeypatch):
 
 
 # ---------------------------------------------------------------------------------------------
-# load_state: the dead path_width branch
+# load_state. The dead path_width branch
 # ---------------------------------------------------------------------------------------------
 
 @pytest.mark.parametrize("name", PIPELINE_NAMES + ["mrcs2mrc", "denoise", "particle-index"])
 def test_no_subcommand_produces_path_width(name):
-    # load_state has a `hasattr(args, "path_width")` branch, but no parser defines it: dead code
+    # load_state has a `hasattr(args, "path_width")` branch, but no parser defines it. Dead code
     assert "path_width" not in _dests(_sub(name))
 
 
@@ -13335,7 +13335,7 @@ def test_set_params_parses_list_param_from_string(text, expected):
 
 
 def test_set_params_round_trips_the_list_default():
-    # the untouched argparse default is the list itself; str()/strip-brackets/split must
+    # the untouched argparse default is the list itself. str()/strip-brackets/split must
     # reproduce it exactly so no spurious "Changing param" happens
     cli.set_params(Namespace(tess_hemisphere_vec=[1.0, 0.0, 0.0]))
     assert params.tess_hemisphere_vec == [1.0, 0.0, 0.0]
@@ -13454,7 +13454,7 @@ def test_interactive_threshold_ignores_extra_kwargs(workdir):
     assert params.project_level is ProjectLevel.BINNING
 
 
-@pytest.mark.xfail(reason="BUG: params.sh divides by particle_diameter with no zero guard "
+@pytest.mark.xfail(reason="Bug. params.sh divides by particle_diameter with no zero guard "
                           "(unlike params.ang_width), so params.save() - reached from both "
                           "mem.threshold and cli.load_state - raises ZeroDivisionError whenever "
                           "the diameter has not been set", strict=False)
@@ -13673,7 +13673,7 @@ def test_main_rejects_unknown_subcommand(monkeypatch, capsys):
 # ---------------------------------------------------------------------------------------------
 
 class _RecordingPool:
-    """Stand-in for multiprocessing.Pool: never forks, just records the work items."""
+    """Stand-in for multiprocessing.Pool. Never forks, just records the work items."""
     log = []
 
     def __init__(self, processes=None):
@@ -13723,7 +13723,7 @@ def test_mrcs2mrc_converts_star_files(monkeypatch, capsys, workdir, recording_po
     capsys.readouterr()
 
 
-@pytest.mark.xfail(reason="BUG: mrcs2mrc returns early when no .star files exist without "
+@pytest.mark.xfail(reason="Bug. mrcs2mrc returns early when no .star files exist without "
                           "chdir'ing back, leaving the process cwd inside the project bin dir",
                    strict=False)
 def test_mrcs2mrc_restores_cwd_when_no_star_files(monkeypatch, capsys, workdir, recording_pool):
@@ -13894,10 +13894,10 @@ def test_denoise_helper_output_dtype_is_float32(workdir):
 # ============================================================================
 
 # --------------------------------------------------------------------------------------
-# fixtures -- params and data_store are process wide singletons, so everything they touch
+# fixtures, params and data_store are process wide singletons, so everything they touch
 # must be snapshotted and put back.  params.load() also chdirs, so cwd is restored too.
 # --------------------------------------------------------------------------------------
-# Only the plain data attributes are snapshotted: reading the derived properties off a
+# Only the plain data attributes are snapshotted. Reading the derived properties off a
 # default Params blows up (Params.sh divides by particle_diameter == 0).
 _PARAM_KEYS = tuple(
     name
@@ -13991,7 +13991,7 @@ def _fill_fake_prds(occupancies, seed=0):
 
 
 # --------------------------------------------------------------------------------------
-# FilterParams -- Butterworth / Gaussian construction
+# FilterParams, Butterworth / Gaussian construction
 # --------------------------------------------------------------------------------------
 def test_filter_params_field_order():
     names = [f.name for f in dataclasses.fields(calc_distance.FilterParams)]
@@ -14007,7 +14007,7 @@ def test_filter_params_requires_all_three_fields(args):
 
 @pytest.mark.parametrize("cutoff", [0.1, 0.25, 0.5, 0.75, 1.0])
 def test_gauss_filter_matches_closed_form(cutoff):
-    # G(Q) = exp(-(ln2/2) (Q/Qc)^2): a Gaussian whose power drops to 1/2 at Q = Qc
+    # G(Q) = exp(-(ln2/2) (Q/Qc)^2). a Gaussian whose power drops to 1/2 at Q = Qc
     Q = util.create_proportional_grid(16)
     got = calc_distance.FilterParams("Gauss", cutoff, 8).create_filter(Q)
     want = np.exp(-(np.log(2) / 2.0) * (Q / cutoff) ** 2)
@@ -14144,7 +14144,7 @@ def test_get_CTFs_shape_stages(n_defocus, width):
 
 @pytest.mark.parametrize("amp_contrast", [0.0, 0.07, 0.1, 0.5])
 def test_ctf_zero_frequency_equals_minus_amplitude_contrast(amp_contrast):
-    # gamma(0) = 0 so the CTF at zero frequency is -(amplitude contrast ratio);
+    # gamma(0) = 0 so the CTF at zero frequency is -(amplitude contrast ratio).
     # after the ifftshift the zero frequency sits at index [0, 0]
     ctf = util.get_CTFs(np.array([12000.0]), 8, 1.0, 2.0, 300.0, np.inf, amp_contrast)
     assert np.isclose(ctf[0, 0, 0], -amp_contrast)
@@ -14280,7 +14280,7 @@ def test_get_psi_stays_within_plus_minus_180(seed):
 
 
 @pytest.mark.xfail(
-    reason="BUG: psi_ang is not reproducible -- the q2Spider least squares solve behind it "
+    reason="Bug. psi_ang is not reproducible, the q2Spider least squares solve behind it "
     "intermittently returns its own (0,0,0) starting guess, zeroing the in-plane alignment "
     "angle for an arbitrary subset of calls in a given process",
     strict=False,
@@ -14299,7 +14299,7 @@ def test_psi_ang_is_minus_the_spider_phi():
 
 
 @pytest.mark.xfail(
-    reason="BUG: psi_ang is not reproducible -- the q2Spider least squares solve behind it "
+    reason="Bug. psi_ang is not reproducible, the q2Spider least squares solve behind it "
     "intermittently returns its own (0,0,0) starting guess, so the rebuilt quaternion is "
     "the identity instead of the reference orientation",
     strict=False,
@@ -14565,7 +14565,7 @@ def test_manifold_analysis_op_none_advances_project_level(project_stages, monkey
 
 
 @pytest.mark.xfail(
-    reason="BUG: manifold_analysis.op makes topos/PrD_{i+1} for i in range(n_jobs) instead "
+    reason="Bug. manifold_analysis.op makes topos/PrD_{i+1} for i in range(n_jobs) instead "
     "of for the requested prds, so a subset run writes eig_spec.txt into a missing dir",
     strict=False,
 )
@@ -14636,7 +14636,7 @@ def test_nlsa_movie_returns_a_tuple_when_there_is_work(project_stages):
 
 
 @pytest.mark.xfail(
-    reason="BUG: nlsa_movie._construct_input_data zips jobs against image_counts built "
+    reason="Bug. nlsa_movie._construct_input_data zips jobs against image_counts built "
     "over all valid prds, so skipped prds shift the pairing and the sort is wrong",
     strict=False,
 )
@@ -14656,7 +14656,7 @@ def test_nlsa_movie_op_with_unknown_prd_does_nothing(project_stages):
 
 
 @pytest.mark.xfail(
-    reason="BUG: nlsa_movie.op guards the project level bump with `if not prd_list`, so an "
+    reason="Bug. nlsa_movie.op guards the project level bump with `if not prd_list`, so an "
     "empty subset request advances the project level like a full run",
     strict=False,
 )
@@ -14782,7 +14782,7 @@ def test_probability_landscape_with_nothing_assigned_returns_zeros(project_stage
 
 def test_probability_landscape_returns_float_counts(project_stages):
     # the accumulator is seeded with np.zeros, so the occupancies come back as float64 even
-    # though they are integer counts; only the OM file on disk is cast back to int
+    # though they are integer counts. Only the OM file on disk is cast back to int
     params.states_per_coord = 3
     params.prd_n_active = 1
     params.save()
@@ -14835,7 +14835,7 @@ def test_probability_landscape_bin_count_follows_states_per_coord(states, projec
 
 
 # --------------------------------------------------------------------------------------
-# writeRelionS2 -- tau to raw image index mapping
+# writeRelionS2, tau to raw image index mapping
 # --------------------------------------------------------------------------------------
 @pytest.mark.parametrize(
     "nS,con_order_range,expected_con_order",
@@ -14963,7 +14963,7 @@ def test_extract_traj_data_by_prd_leaves_empty_bins_untouched(project_stages):
 
 
 def test_psi_ang_pins_psi_to_zero_for_every_direction():
-    # writeRelionS2 stores this third angle in the star file; it is degenerate for a
+    # writeRelionS2 stores this third angle in the star file. It is degenerate for a
     # projection direction and is hard coded to zero rather than taken from the optimizer
     rng = np.random.default_rng(0)
     directions = rng.normal(size=(3, 12))
@@ -15041,7 +15041,7 @@ def test_extract_traj_data_by_prd_scales_images_by_con_order(project_stages):
 
 
 # --------------------------------------------------------------------------------------
-# writeRelionS2 -- RELION output filename templates
+# writeRelionS2, RELION output filename templates
 # --------------------------------------------------------------------------------------
 @pytest.mark.parametrize(
     "istart,numNext", [(0, 20), (20, 40), (40, 45), (0, 3)]
@@ -15189,7 +15189,7 @@ def test_force_remove_with_no_arguments_is_a_noop():
 
 
 def test_find_ccs_removes_the_cc_file_and_belief_dumps(project_stages, monkeypatch):
-    # op() clears stale results before recomputing; stop right after by making the anchor
+    # op() clears stale results before recomputing. Stop right after by making the anchor
     # check fail, which is the documented early return
     for name in ("nodeAllStateBel_rc1.txt", "nodeAllStateBel_rc2.txt"):
         open(os.path.join(params.CC_dir, name), "w").close()
