@@ -15250,8 +15250,8 @@ def test_particle_index_dispatch_forwards_verify(monkeypatch):
     seen = {}
     monkeypatch.setattr(particle_index, "op", lambda **kw: seen.update(kw))
     cli._funcs["particle-index"](Namespace(command="particle-index", input_file="params_demo.toml", verify=True,
-                                           no_movies=False))
-    assert seen == {"verify_states": True, "movies": True}
+                                           no_movies=False, trace_image=[], trace_particle=[], trace_prd=[]))
+    assert seen == {"verify_states": True, "movies": True, "trace_images": [], "trace_particles": [], "trace_prds": []}
 
 
 def test_particle_index_no_movies_skips_the_movie_table(monkeypatch):
@@ -15260,7 +15260,27 @@ def test_particle_index_no_movies_skips_the_movie_table(monkeypatch):
     seen = {}
     monkeypatch.setattr(particle_index, "op", lambda **kw: seen.update(kw))
     cli._funcs["particle-index"](args)
-    assert seen == {"verify_states": False, "movies": False}
+    assert seen == {"verify_states": False, "movies": False, "trace_images": [], "trace_particles": [], "trace_prds": []}
+
+
+def test_particle_index_trace_options_parse():
+    args = cli.get_parser().parse_args(["utility", "particle-index", "--trace-image", "25", "219", "--trace-image", "3", "1",
+                                        "--trace-particle", "11806", "--trace-prd", "45", "params_demo.toml"])
+    assert args.trace_image == [[25, 219], [3, 1]]
+    assert args.trace_particle == [11806]
+    assert args.trace_prd == [45]
+
+
+def test_frame_chain_keeps_every_step():
+    rng = np.random.default_rng(1)
+    ind = rng.choice(1000, size=14, replace=False)
+    posPath = np.sort(rng.choice(14, size=12, replace=False))
+    posPsi1 = rng.permutation(12)
+    chain = particle_index.frame_chain(ind, posPath, posPsi1, 4)
+    assert np.array_equal(chain["sorted"], np.arange(6) + 2)  # s = m + C - 1 with C = 3
+    assert np.array_equal(chain["retained"], posPsi1[chain["sorted"]])
+    assert np.array_equal(chain["place"], posPath[chain["retained"]])
+    assert np.array_equal(chain["particle_id"], ind[chain["place"]])
 
 
 def test_frame_particles_follows_the_nlsa_offset():
@@ -15430,6 +15450,46 @@ def test_particle_index_op_needs_the_trajectory_step(project_stages, capsys):
     particle_index.op()
     assert "trajectory" in capsys.readouterr().out
     assert not os.path.isdir(os.path.join(params.out_dir, "particle_index"))
+
+
+def test_trace_image_and_trace_particle_agree(project_stages):
+    params.prd_n_active = 3
+    _fake_trajectory_run(np.random.default_rng(3), [30, 24, 27], [2, 0, 1])
+    mirrored, _ = particle_index._load_pd_data()
+    frames, states = particle_index.track(mirrored)
+    row = states.iloc[5]
+    back = "\n".join(particle_index.trace_image(frames, states, row.state, row.image, mirrored))
+    assert f"particle ID r = {row.particle_id}" in back
+    forward = "\n".join(particle_index.trace_particle(frames, states, int(row.particle_id), mirrored))
+    assert f"frame m = {row.frame}" in forward
+    assert f"image {row.image} of state {row.state}" in forward
+
+
+def test_trace_particle_reports_trimmed_and_edge_particles(project_stages):
+    params.prd_n_active = 3
+    _fake_trajectory_run(np.random.default_rng(3), [30, 24, 27], [0, 1, 2])
+    mirrored, _ = particle_index._load_pd_data()
+    frames, states = particle_index.track(mirrored)
+    traj = myio.fin1(particle_index._traj_vars_file())
+    ind, posPath, posPsi1 = myio.fin1(params.get_dist_file(0))["ind"], traj["posPathAll"][0], traj["posPsi1All"][0]
+    trimmed = int(ind[np.setdiff1d(np.arange(len(ind)), posPath)[0]])
+    first = int(ind[posPath[posPsi1[0]]])  # sorted s = 0 lies before the first frame
+    assert "trimmed, no frame" in "\n".join(particle_index.trace_particle(frames, states, trimmed, mirrored))
+    assert "no frame (start of the psi order)" in "\n".join(particle_index.trace_particle(frames, states, first, mirrored))
+    assert "outside the star file" in particle_index.trace_particle(frames, states, len(mirrored), mirrored)[0]
+
+
+def test_particle_index_op_saves_requested_traces(project_stages, capsys):
+    params.prd_n_active = 3
+    _fake_trajectory_run(np.random.default_rng(4), [30, 24, 27], [0, 1, 2])
+    particle_index.op(movies=False, trace_images=[(1, 1)], trace_prds=[2])
+    out_dir = os.path.join(params.out_dir, "particle_index")
+    trace = open(os.path.join(out_dir, "trace.txt")).read()
+    assert "Image 1 of state 1 back to its particle" in trace
+    assert "PD 2, C = 9, 9 frames" in trace
+    assert "Trace saved in" in capsys.readouterr().out
+    frames = pd.read_csv(os.path.join(out_dir, "frames.csv"))
+    assert {"C", "sorted", "retained", "place", "particle_id"} <= set(frames.columns)
 
 
 def test_verify_counts_tracked_directions(project_stages):

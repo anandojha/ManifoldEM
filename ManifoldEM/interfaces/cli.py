@@ -112,6 +112,12 @@ def get_parser():
                                        help="Check every state image against the angles in its state star file")
     particle_index_parser.add_argument("--no-movies", action="store_true",
                                        help="Skip the 2D movie table, which reads every psi analysis file")
+    particle_index_parser.add_argument("--trace-image", type=int, nargs=2, action="append", default=[], metavar=("STATE", "IMAGE"),
+                                       help="Print and save the steps from a state image back to its particle ID (both count from 1)")
+    particle_index_parser.add_argument("--trace-particle", type=int, action="append", default=[], metavar="ID",
+                                       help="Print and save the steps of a particle ID through every PD that holds it")
+    particle_index_parser.add_argument("--trace-prd", type=int, action="append", default=[], metavar="PD",
+                                       help="Print and save the steps for every NLSA frame of a PD")
 
     return parser
 
@@ -278,7 +284,8 @@ def denoise(args):
 
 def particle_index(args):
     from ManifoldEM import particle_index as tracker
-    tracker.op(verify_states=args.verify, movies=not args.no_movies)
+    tracker.op(verify_states=args.verify, movies=not args.no_movies, trace_images=args.trace_image,
+               trace_particles=args.trace_particle, trace_prds=args.trace_prd)
 
 
 def set_params(args):

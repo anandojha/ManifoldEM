@@ -9,9 +9,12 @@ so its particle ID is
 with ind from the distance file and posPath, PosPsi1 from psi analysis. Every array is saved by
 a finished run, so no stage has to be rerun. Requires the trajectory step.
 
-prd, frame, sorted and particle_id count from 0. state, image and movie_frame count from 1, as in
-the state file names and the image numbers of the state star files. With cone assignment a
-particle can sit in several PDs and then appears in several rows.
+frames.csv keeps every step of this chain: sorted s = m + C - 1, retained j = PosPsi1[s],
+place i = posPath[j] and particle_id = ind[i].
+
+prd, frame, sorted, retained, place and particle_id count from 0. state, image and movie_frame
+count from 1, as in the state file names and the image numbers of the state star files. With cone
+assignment a particle can sit in several PDs and then appears in several rows.
 """
 
 import os
@@ -26,18 +29,25 @@ from ManifoldEM.params import params
 from ManifoldEM.quaternion import quaternion_to_S2
 
 
-def frame_particles(ind, posPath, posPsi1, con_order_range, shift=0):
-    """Particle ID of every NLSA frame of one PD, -1 where `shift` leaves the PD (controls only)."""
+def frame_chain(ind, posPath, posPsi1, con_order_range, shift=0):
+    """Every step from NLSA frame to particle ID for one PD, -1 where `shift` leaves the PD (controls only)."""
     nS = len(posPath)
     C = nS // con_order_range
     if C < 1:
         raise ValueError(f"PD with {nS} particles has no NLSA frames for con_order_range {con_order_range}")
-    sorted_ids = np.asarray(ind)[np.asarray(posPath)[np.asarray(posPsi1)]]
     s = np.arange(nS - 2 * C) + C - 1 + shift
-    ids = np.full(len(s), -1, dtype=int)
     inside = (s >= 0) & (s < nS)
-    ids[inside] = sorted_ids[s[inside]]
-    return ids
+    chain = {name: np.full(len(s), -1, dtype=int) for name in ("sorted", "retained", "place", "particle_id")}
+    chain["sorted"][inside] = s[inside]
+    chain["retained"][inside] = np.asarray(posPsi1)[s[inside]]
+    chain["place"][inside] = np.asarray(posPath)[chain["retained"][inside]]
+    chain["particle_id"][inside] = np.asarray(ind)[chain["place"][inside]]
+    return chain
+
+
+def frame_particles(ind, posPath, posPsi1, con_order_range, shift=0):
+    """Particle ID of every NLSA frame of one PD, -1 where `shift` leaves the PD (controls only)."""
+    return frame_chain(ind, posPath, posPsi1, con_order_range, shift)["particle_id"]
 
 
 def state_frames(tau_eq, n_states, width):
@@ -62,6 +72,14 @@ def _state_star_file(state):
     return os.path.join(params.bin_dir, f"EulerAngles_{params.traj_name}_{state}_of_{params.states_per_coord}.star")
 
 
+def _state_stack_file(state):
+    return os.path.join(params.bin_dir, f"imgsRELION_{params.traj_name}_{state}_of_{params.states_per_coord}.mrcs")
+
+
+def _rel(path):
+    return os.path.relpath(path, params.out_dir)
+
+
 def _read_ind(prd):
     with h5py.File(params.get_dist_file(prd), "r") as f:
         return f["ind"][()]
@@ -83,13 +101,13 @@ def track(mirrored=None, shift=0):
     frames = []
     chunks = [[] for _ in range(params.states_per_coord - params.width_1D + 1)]
     for x in traj["xSelect"]:
-        ids = frame_particles(_read_ind(x), traj["posPathAll"][x], traj["posPsi1All"][x],
-                              params.con_order_range, shift)
+        chain = frame_chain(_read_ind(x), traj["posPathAll"][x], traj["posPsi1All"][x],
+                            params.con_order_range, shift)
+        ids = chain["particle_id"]
         tau = np.ravel(traj["trajTaus"][x])
         tau_eq = np.ravel(util.hist_match(traj["trajTaus"][x], traj["tauAvg"]))
-        m = np.arange(len(ids))
         C = len(traj["posPathAll"][x]) // params.con_order_range
-        frames.append(pd.DataFrame(dict(prd=x, frame=m, sorted=m + C - 1, particle_id=ids,
+        frames.append(pd.DataFrame(dict(prd=x, frame=np.arange(len(ids)), C=C, **chain,
                                         mirrored=mirrored[ids.clip(0)] & (ids >= 0), tau=tau, tau_eq=tau_eq)))
         for b, fr in enumerate(state_frames(tau_eq, params.states_per_coord, params.width_1D)):
             if len(fr):
@@ -165,7 +183,96 @@ def verify(states, quats=None, tol=0.01):
     return hit, missing, mismatched
 
 
-def op(verify_states=False, movies=True):
+def _step_table(rows):
+    """Aligned lines for (step, read from, index, result) rows."""
+    head = ("Step", "Read from", "Index", "Result")
+    width = [max(len(str(r[k])) for r in rows + [head]) for k in range(3)]
+    return [f"  {r[0]:<{width[0]}}  {r[1]:<{width[1]}}  {r[2]:<{width[2]}}  {r[3]}" for r in [head] + rows]
+
+
+def trace_image(frames, states, state, image, mirrored):
+    """Steps from one state image back to its particle ID."""
+    hit = states[(states.state == state) & (states.image == image)]
+    if hit.empty:
+        return [f"Image {image} of state {state}: no such state image"]
+    x, m = int(hit.prd.iloc[0]), int(hit.frame.iloc[0])
+    f = frames[(frames.prd == x) & (frames.frame == m)].iloc[0]
+    C, s, j, i, r = (int(f[k]) for k in ("C", "sorted", "retained", "place", "particle_id"))
+    traj = _rel(_traj_vars_file())
+    rows = [("1", _rel(_state_stack_file(state)), f"image {image}", f"PD {x}, frame m = {m} (stack written PD by PD)"),
+            ("2", f"NLSA offset, C = {C}", "s = m + C - 1", f"sorted s = {s}"),
+            ("3", f"{traj} (posPsi1All[{x}])", f"PosPsi1[{s}]", f"retained j = {j}"),
+            ("4", f"{traj} (posPathAll[{x}])", f"posPath[{j}]", f"place i = {i}"),
+            ("5", f"{_rel(params.get_dist_file(x))} (ind)", f"ind[{i}]", f"particle ID r = {r}" + (" (mirrored)" if mirrored[r] else ""))]
+    return [f"Image {image} of state {state} back to its particle"] + _step_table(rows) + \
+           [f"  Particle ID {r} is row {r} of {os.path.basename(params.align_param_file)} (0 based)"]
+
+
+def trace_particle(frames, states, pid, mirrored):
+    """Steps from one particle ID through every active PD that holds it."""
+    if not 0 <= pid < len(mirrored):
+        return [f"Particle ID {pid}: outside the star file (0 to {len(mirrored) - 1})"]
+    traj = myio.fin1(_traj_vars_file())
+    selected = set(int(x) for x in traj["xSelect"])
+    out = [f"Particle ID {pid} (row {pid} of {os.path.basename(params.align_param_file)}, 0 based)"
+           + (", mirrored" if mirrored[pid] else "")]
+    found = False
+    for p in range(params.prd_n_active):
+        if not os.path.isfile(params.get_dist_file(p)):
+            continue
+        ind = _read_ind(p)
+        places = np.nonzero(ind == pid)[0]
+        if not len(places):
+            continue
+        found = True
+        i = int(places[0])
+        rows = [("1", f"{_rel(params.get_dist_file(p))} (ind)", f"ind[{i}] = {pid}", f"place i = {i}")]
+        if p not in selected:
+            out += [f"PD {p}"] + _step_table(rows + [("2", "Trajectory selection", "xSelect", "PD not selected, no frames")])
+            continue
+        posPath, posPsi1 = np.asarray(traj["posPathAll"][p]), np.asarray(traj["posPsi1All"][p])
+        name = _rel(_traj_vars_file())
+        j = np.nonzero(posPath == i)[0]
+        if not len(j):
+            out += [f"PD {p}"] + _step_table(rows + [("2", f"{name} (posPathAll[{p}])", f"posPath has no {i}", "trimmed, no frame")])
+            continue
+        j = int(j[0])
+        s = int(np.nonzero(posPsi1 == j)[0][0])
+        C = len(posPath) // params.con_order_range
+        m = s - C + 1
+        rows += [("2", f"{name} (posPathAll[{p}])", f"posPath[{j}] = {i}", f"retained j = {j}"),
+                 ("3", f"{name} (posPsi1All[{p}])", f"PosPsi1[{s}] = {j}", f"sorted s = {s}")]
+        if not 0 <= m < len(posPath) - 2 * C:
+            end = "start" if m < 0 else "end"
+            out += [f"PD {p}"] + _step_table(rows + [("4", f"NLSA offset, C = {C}", "m = s - C + 1", f"no frame ({end} of the psi order)")])
+            continue
+        rows.append(("4", f"NLSA offset, C = {C}", "m = s - C + 1", f"frame m = {m}"))
+        img = states[(states.prd == p) & (states.frame == m)]
+        for k, (b, n) in enumerate(zip(img.state, img.image)):
+            rows.append((str(5 + k), _rel(_state_stack_file(int(b))), "stack write order", f"image {int(n)} of state {int(b)}"))
+        out += [f"PD {p}"] + _step_table(rows)
+    if not found:
+        out.append("  In no active PD (sparse direction)")
+    return out
+
+
+def trace_prd(frames, states, prd):
+    """Every step for every NLSA frame of one PD."""
+    f = frames[frames.prd == prd]
+    if f.empty:
+        return [f"PD {prd}: no NLSA frames in the trajectory selection"]
+    where = {(int(m)): f"{int(b)}:{int(n)}" for b, n, m in
+             states[states.prd == prd][["state", "image", "frame"]].itertuples(index=False)}
+    C = int(f.C.iloc[0])
+    lines = [f"PD {prd}, C = {C}, {len(f)} frames (frame m -> sorted s -> retained j -> place i -> particle ID)",
+             f"  {'m':>5} {'s':>6} {'j':>6} {'i':>6} {'Particle ID':>12}  State:image"]
+    for row in f.itertuples(index=False):
+        lines.append(f"  {row.frame:>5} {row.sorted:>6} {row.retained:>6} {row.place:>6} {row.particle_id:>12}  "
+                     + where.get(int(row.frame), "none"))
+    return lines
+
+
+def op(verify_states=False, movies=True, trace_images=(), trace_particles=(), trace_prds=()):
     if not os.path.isfile(_traj_vars_file()):
         print("No trajectory variables found. Have you run the 'trajectory' step?")
         return
@@ -205,3 +312,17 @@ def op(verify_states=False, movies=True):
         print(f"Offset shifted by 1 {control} of {len(states)} (control)")
         if mismatched:
             print(f"States whose star file row count differs: {mismatched}")
+
+    lines = []
+    for state, image in trace_images:
+        lines += [""] + trace_image(frames, states, state, image, mirrored)
+    for pid in trace_particles:
+        lines += [""] + trace_particle(frames, states, pid, mirrored)
+    for prd in trace_prds:
+        lines += [""] + trace_prd(frames, states, prd)
+    if lines:
+        trace_file = os.path.join(out_dir, "trace.txt")
+        with open(trace_file, "w") as f:
+            f.write("\n".join(lines[1:]) + "\n")
+        print("\n".join(lines))
+        print(f"\nTrace saved in: {os.path.realpath(trace_file)}")

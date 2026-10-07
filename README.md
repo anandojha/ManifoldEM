@@ -219,16 +219,23 @@ analysis file and is the slow part for large runs. No earlier step is rerun.
 
 ```
 % manifold-cli utility particle-index --verify params_my_J310_analysis.toml
+% manifold-cli utility particle-index --trace-image 25 219 --trace-particle 11806 --trace-prd 45 params_my_J310_analysis.toml
 ```
+
+`--trace-image STATE IMAGE` prints the steps from a state image back to its particle ID,
+`--trace-particle ID` the steps of a particle through every PD that holds it, and `--trace-prd PD`
+the steps for every NLSA frame of a PD. Each option can be repeated, and the printout is also saved
+as `trace.txt`.
 
 | File | One row per | Columns |
 |---|---|---|
-| `frames.csv` | NLSA frame | prd, frame, sorted, particle_id, mirrored, tau, tau_eq |
+| `frames.csv` | NLSA frame | prd, frame, C, sorted, retained, place, particle_id, mirrored, tau, tau_eq |
 | `states.csv` | State image | state, image, prd, frame, particle_id |
 | `movies.csv` | 2D movie position | prd, movie_frame, frame, particle_id |
 | `particles.csv` | Particle | particle_id, mirrored, pds, frames, state_images |
 
-prd, frame, sorted and particle_id count from 0. state, image and movie_frame count from 1, as in
+Each frame row keeps the chain sorted = frame + C - 1, retained = PosPsi1[sorted], place =
+posPath[retained] and particle_id = ind[place]. prd, frame, sorted, retained, place and particle_id count from 0. state, image and movie_frame count from 1, as in
 the state file names and the image numbers of the state star files. With `prd_assignment = "cone"`
 a particle can sit in several PDs, appears once per PD in `frames.csv`, and has `pds` above 1.
 
