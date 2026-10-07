@@ -109,7 +109,7 @@ def get_parser():
                                                           formatter_class=ArgumentDefaultsHelpFormatter)
     particle_index_parser.add_argument("input_file", type=str)
     particle_index_parser.add_argument("--verify", action="store_true",
-                                       help="Check every state image against the angles in its state star file")
+                                       help="Check every pipeline step against the files that step wrote")
     particle_index_parser.add_argument("--no-movies", action="store_true",
                                        help="Leave the movie_frames column empty (saves time on large runs)")
     particle_index_parser.add_argument("--trace-image", type=int, nargs=2, action="append", default=[], metavar=("STATE", "IMAGE"),

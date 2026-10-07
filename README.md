@@ -221,7 +221,7 @@ every NLSA frame, state image and 2D movie frame. No earlier step is rerun.
 
 | Option | Does |
 |---|---|
-| `--verify` | Checks every state image against its state star file |
+| `--verify` | Checks every pipeline step against the files that step wrote (binning to state images) |
 | `--no-movies` | Leaves the `movie_frames` column empty (saves time on large runs) |
 | `--trace-image STATE IMAGE` | Steps from a state image back to its particle ID |
 | `--trace-particle ID` | Steps of a particle through every PD that holds it |

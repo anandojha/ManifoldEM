@@ -15349,14 +15349,21 @@ def _fake_trajectory_run(rng, sizes, order, overlap=0, extra=0):
         tau = rng.random((n_frames, 1))
         members[x] = np.concatenate([ind, [n_total]]) if extra and x == 0 else ind
         myio.fout1(params.get_dist_file(x), ind=ind, q=quats[:, ind])
-        myio.fout1(params.get_psi_file(x), ind=ind, posPath=posPath)
+        psi = np.zeros((nS, 2))
+        psi[posPsi1, 0] = np.arange(nS)  # psi_1 rises along PosPsi1, as argsort guarantees
+        myio.fout1(params.get_psi_file(x), ind=ind, posPath=posPath, psi=psi)
         myio.fout1(params.get_EL_file(x), IMGT=IMGT, tau=tau, posPath=posPath, PosPsi1=posPsi1,
                    tauinds=rng.integers(0, n_frames, size=4))
         trajTaus[x], posPathAll[x], posPsi1All[x] = tau, posPath, posPsi1
 
     with open(params.pd_file, "wb") as f:
         pickle.dump(dict(quats_full=quats, image_is_mirrored=rng.random(n_total + extra) < 0.5,
-                         image_indices_full=members, thres_ids=list(range(len(sizes)))), f)
+                         image_indices_full=members, thres_ids=list(range(len(sizes))),
+                         occupancy_full=np.array([len(m) for m in members]), thres_low=10,
+                         thres_high=max(sizes) + 2, trash_ids=set()), f)
+    psinums = np.full((2, len(sizes)), -1)
+    psinums[0, order] = 0
+    myio.fout1(params.CC_file, psinums=psinums, senses=np.ones_like(psinums))
     tauAvg = np.concatenate([((trajTaus[x] - trajTaus[x].min()) / np.ptp(trajTaus[x])).ravel() for x in order])
     myio.fout1(f"{params.traj_file}name{params.traj_name}_vars.pkl", trajTaus=trajTaus, posPsi1All=posPsi1All,
                posPathAll=posPathAll, xSelect=order, tauAvg=tauAvg)
@@ -15515,6 +15522,56 @@ def test_particle_index_op_saves_requested_traces(project_stages, capsys):
     assert "PD 2, C = 9, 9 frames" in trace
     assert "Trace file" in capsys.readouterr().out
     assert list(pd.read_csv(os.path.join(out_dir, "particle_index.csv")).columns) == particle_index.COLUMNS
+
+
+STEPS = ["Binning", "Truncation", "Trimming", "Carried forward", "Sorting", "NLSA frames", "PD selection",
+         "States", "Images", "Totals"]
+
+
+def _verify_fake_run(tamper=None):
+    params.prd_n_active = 3
+    _fake_trajectory_run(np.random.default_rng(3), [30, 24, 27], [2, 0, 1])
+    if tamper:
+        tamper()
+    with open(params.pd_file, "rb") as f:
+        pd_data = pickle.load(f)
+    frames, states = particle_index.track(pd_data["image_is_mirrored"])
+    table = particle_index.particle_map(frames, states, None, pd_data)
+    return {r[0]: r[2] for r in particle_index.verify_steps(frames, states, table, pd_data)}
+
+
+def test_verify_steps_pass_on_a_consistent_run(project_stages):
+    failed = _verify_fake_run()
+    assert list(failed) == STEPS
+    # States is left out, its angles come from q2Spider, which stalls at random
+    assert all(failed[step] == 0 for step in STEPS if step != "States"), failed
+
+
+def _reverse_members_of_pd_0():
+    with open(params.pd_file, "rb") as f:
+        pd_data = pickle.load(f)
+    pd_data["image_indices_full"][0] = pd_data["image_indices_full"][0][::-1]
+    with open(params.pd_file, "wb") as f:
+        pickle.dump(pd_data, f)
+
+
+def _swap_two_sorted_particles_of_pd_0():
+    path = f"{params.traj_file}name{params.traj_name}_vars.pkl"
+    traj = myio.fin1(path)
+    traj["posPsi1All"][0][[0, -1]] = traj["posPsi1All"][0][[-1, 0]]
+    myio.fout1(path, **traj)
+
+
+def _change_one_pixel_of_state_1():
+    with mrcfile.open(os.path.join(params.bin_dir, f"imgsRELION_{params.traj_name}_1_of_{params.states_per_coord}.mrcs"), mode="r+") as mrc:
+        mrc.data[0, 0, 0] += 1
+
+
+@pytest.mark.parametrize("step,tamper", [("Truncation", _reverse_members_of_pd_0),
+                                         ("Sorting", _swap_two_sorted_particles_of_pd_0),
+                                         ("Images", _change_one_pixel_of_state_1)])
+def test_verify_steps_catch_a_broken_step(project_stages, step, tamper):
+    assert _verify_fake_run(tamper)[step] >= 1
 
 
 def test_verify_counts_tracked_directions(project_stages):

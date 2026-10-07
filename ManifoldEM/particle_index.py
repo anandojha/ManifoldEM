@@ -10,6 +10,7 @@ import os
 import pickle
 
 import h5py
+import mrcfile
 import numpy as np
 import pandas as pd
 
@@ -226,6 +227,104 @@ def verify(states, quats=None, tol=0.01):
     return hit, missing, mismatched
 
 
+def verify_steps(frames, states, table, pd_data, tol=0.01):
+    """Check every pipeline step against the files that step wrote, one row per step."""
+    traj = myio.fin1(_traj_vars_file())
+    selected = [int(x) for x in traj["xSelect"]]
+    thres_ids = list(pd_data["thres_ids"])
+    members = [np.asarray(pd_data["image_indices_full"][t]) for t in thres_ids]
+    thres_low = pd_data.get("thres_low", params.prd_thres_low)
+    thres_high = pd_data.get("thres_high", params.prd_thres_high)
+    have_dist = [p for p in range(len(members)) if os.path.isfile(params.get_dist_file(p))]
+    have_psi = [p for p in have_dist if os.path.isfile(params.get_psi_file(p))]
+    psinums = myio.fin1(params.CC_file)["psinums"][0] if os.path.isfile(params.CC_file) else None
+    rows = []
+
+    bad = [p for p, m in enumerate(members) if len(np.unique(m)) != len(m)]
+    if "occupancy_full" in pd_data:
+        bad += [p for p, t in enumerate(thres_ids) if pd_data["occupancy_full"][t] < thres_low]
+    n_twice = 0
+    if params.prd_assignment == "hard" and members:
+        n_twice = int((np.bincount(np.concatenate(members)) > 1).sum())
+    rows.append(("Binning", f"{len(members)} PDs", len(set(bad)) + n_twice, "pd_data.pkl",
+                 f"particles in two PDs {n_twice}" if n_twice else ""))
+
+    bad = [p for p in have_dist if not np.array_equal(_read_ind(p), members[p][:thres_high])]
+    rows.append(("Truncation", f"{len(have_dist)} PDs", len(bad), "distances/", f"PDs {bad}" if bad else ""))
+
+    bad = []
+    for p in have_psi:
+        with h5py.File(params.get_psi_file(p), "r") as f:
+            ind, pos_path = f["ind"][()], f["posPath"][()]
+        if not (np.array_equal(ind, _read_ind(p)) and np.all(np.diff(pos_path) > 0)
+                and pos_path.min() >= 0 and pos_path.max() < len(ind)):
+            bad.append(p)
+    rows.append(("Trimming", f"{len(have_psi)} PDs", len(bad), "diff_maps/", f"PDs {bad}" if bad else ""))
+
+    bad = [p for p in selected if p in have_psi and not np.array_equal(traj["posPathAll"][p], _read_pos_path(p))]
+    rows.append(("Carried forward", f"{len(selected)} PDs", len(bad), "traj/ against diff_maps/", f"PDs {bad}" if bad else ""))
+
+    if psinums is None:
+        rows.append(("Sorting", "skipped", 0, "no CC/CC_file.pkl", ""))
+    else:
+        bad = []
+        for p in selected:
+            pos_psi1 = np.asarray(traj["posPsi1All"][p])
+            with h5py.File(params.get_psi_file(p), "r") as f:
+                along = f["psi"][()][pos_psi1, int(psinums[p])]
+            if not (np.array_equal(np.sort(pos_psi1), np.arange(len(pos_psi1))) and np.all(np.diff(along) >= 0)):
+                bad.append(p)
+        rows.append(("Sorting", f"{len(selected)} PDs", len(bad), "diff_maps/ psi and CC_file.pkl", f"PDs {bad}" if bad else ""))
+
+    bad = []
+    for p in selected:
+        nS = len(traj["posPathAll"][p])
+        if np.ravel(traj["trajTaus"][p]).size != nS - 2 * (nS // params.con_order_range):
+            bad.append(p)
+    rows.append(("NLSA frames", f"{len(selected)} PDs", len(bad), "traj/ tau against posPath", f"PDs {bad}" if bad else ""))
+
+    if psinums is None:
+        rows.append(("PD selection", "skipped", 0, "no CC/CC_file.pkl", ""))
+    else:
+        trash = set(pd_data.get("trash_ids", set()))
+        expected = {p for p in range(len(members)) if psinums[p] != -1 and p not in trash
+                    and os.path.isfile(params.get_EL_file(p))}
+        diff = sorted(expected ^ set(selected))
+        rows.append(("PD selection", f"{len(members)} PDs", len(diff), "CC_file.pkl and trash", f"PDs {diff}" if diff else ""))
+
+    hit, missing, mismatched = verify(states, pd_data["quats_full"], tol)
+    control, _, _ = verify(track(pd_data["image_is_mirrored"], shift=1)[1], pd_data["quats_full"], tol)
+    detail = f"shifted control {control} of {len(states)}"
+    if missing:
+        detail += f", no star file for states {missing}"
+    if mismatched:
+        detail += f", row count differs in states {mismatched}"
+    rows.append(("States", f"{len(states)} images", len(states) - hit, "bin/*.star angles", detail))
+
+    on_disk = [b for b in sorted(states.state.unique()) if os.path.isfile(_state_stack_file(b))]
+    checked = failed = 0
+    imgt = {}
+    dim = params.ms_num_pixels
+    for b in on_disk:
+        stack = mrcfile.mmap(_state_stack_file(b), mode="r").data
+        t = states[states.state == b]
+        for k, x, m in zip(t.image.values - 1, t.prd.values, t.frame.values):
+            if x not in imgt:
+                C = len(traj["posPathAll"][x]) // params.con_order_range
+                imgt[x] = (myio.fin1(params.get_EL_file(x))["IMGT"] / C).T
+            written = imgt[x][m].astype(np.float32).reshape(dim, dim).T * -1
+            checked += 1
+            failed += not np.array_equal(np.asarray(stack[k]), written)
+    rows.append(("Images", f"{checked} images", failed, "bin/*.mrcs against ELConc IMGT",
+                 f"{len(on_disk)} of {states.state.nunique()} stacks on disk"))
+
+    n = len(pd_data["image_is_mirrored"])
+    bad = int(table.particle_id.nunique() != n) + int((table.fate == "In a state").sum() != len(states))
+    rows.append(("Totals", f"{len(table)} rows", bad, "particle_index.csv",
+                 f"{table.particle_id.nunique()} of {n} particles listed"))
+    return rows
+
+
 def _step_table(rows):
     """Aligned lines for (step, read from, index, result) rows."""
     head = ("Step", "Read from", "Index", "Result")
@@ -348,13 +447,12 @@ def op(verify_states=False, movies=True, trace_images=(), trace_particles=(), tr
         print(f"No state star file for states {missing}. Their rows in particle_index.csv are images the trajectory step should have written.")
 
     if verify_states:
-        hit, _, mismatched = verify(states, quats)
-        control, _, _ = verify(track(mirrored, shift=1)[1], quats)
-        print("\nVerification against the state star files (directions within 0.01 degrees)")
-        print(f"Tracked particles   {hit} of {len(states)}")
-        print(f"Offset shifted by 1 {control} of {len(states)} (control)")
-        if mismatched:
-            print(f"States with a different row count in their star file {mismatched}")
+        print("\nVerification step by step")
+        head = ("Step", "Checked", "Failed", "Against", "")
+        rows = verify_steps(frames, states, table, pd_data)
+        w = [max(len(str(r[k])) for r in rows + [head]) for k in range(4)]
+        for r in [head] + rows:
+            print(f"  {r[0]:<{w[0]}}  {str(r[1]):<{w[1]}}  {str(r[2]):<{w[2]}}  {r[3]:<{w[3]}}  {r[4]}".rstrip())
 
     lines = []
     for state, image in trace_images:
