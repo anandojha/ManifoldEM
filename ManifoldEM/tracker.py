@@ -4,9 +4,9 @@ The particle ID is the 0 based row of the input star file. Every step renumbers 
 PD, and each group of output/<project_name>/tracker.h5 stores the particle ID and PD next to the
 numbers of that step
 
-    calc_distance          place i        ind[i] is the particle ID
-    manifold_analysis      retained j     posPath[j] is place i
-    psi_analysis           sorted s       PosPsi1[s] is retained j, for every topo
+    calc_distance          pd_index i          ind[i] is the particle ID
+    manifold_analysis      retained_index j    posPath[j] is pd_index i
+    psi_analysis           psi_index s         PosPsi1[s] is retained_index j, for every topo
     find_ccs               chosen topo    one per PD
     probability_landscape  frame m        m = s - C + 1 for the chosen topo, C = nS // con_order_range
     trajectory             state, image   stack write order gives PD and frame m
@@ -31,7 +31,7 @@ from ManifoldEM.params import params
 from ManifoldEM.quaternion import quaternion_to_S2
 
 STEPS = ["calc-distance", "manifold-analysis", "psi-analysis", "find-ccs", "probability-landscape", "trajectory"]
-MAPPER = ["particle_id", "mirrored", "prd", "C", "place", "retained", "topo", "sorted", "frame", "state", "image",
+MAPPER = ["particle_id", "mirrored", "prd", "C", "pd_index", "retained_index", "topo", "psi_index", "frame", "state", "image",
           "movie_frames", "tau", "tau_eq", "fate"]
 
 
@@ -127,14 +127,14 @@ def build_calc_distance():
         have.append(p)
         if not np.array_equal(ind, m[:thres_high]):
             bad_trunc.append(p)
-        parts.append(pd.DataFrame(dict(particle_id=ind, prd=p, place=np.arange(len(ind)), fate="Kept")))
+        parts.append(pd.DataFrame(dict(particle_id=ind, prd=p, pd_index=np.arange(len(ind)), fate="Kept")))
         over = np.setdiff1d(m, ind)
-        parts.append(pd.DataFrame(dict(particle_id=over, prd=p, place=-1, fate="Over prd_thres_high")))
+        parts.append(pd.DataFrame(dict(particle_id=over, prd=p, pd_index=-1, fate="Over prd_thres_high")))
     in_pd = np.zeros(len(mirrored), dtype=bool)
     for m in members:
         in_pd[m] = True
     nowhere = np.nonzero(~in_pd)[0]
-    parts.append(pd.DataFrame(dict(particle_id=nowhere, prd=-1, place=-1, fate="In no PD")))
+    parts.append(pd.DataFrame(dict(particle_id=nowhere, prd=-1, pd_index=-1, fate="In no PD")))
     table = pd.concat(parts, ignore_index=True)
     table.insert(1, "mirrored", mirrored[table.particle_id.values])
 
@@ -165,7 +165,7 @@ def build_manifold_analysis():
             bad.append(p)
         retained = np.full(len(ind), -1)
         retained[pos_path] = np.arange(len(pos_path))
-        parts.append(pd.DataFrame(dict(particle_id=ind, prd=p, place=np.arange(len(ind)), retained=retained,
+        parts.append(pd.DataFrame(dict(particle_id=ind, prd=p, pd_index=np.arange(len(ind)), retained_index=retained,
                                        fate=np.where(retained >= 0, "Kept", "Trimmed").astype(object))))
     if not parts:
         raise FileNotFoundError("no diff_maps files")
@@ -192,7 +192,7 @@ def build_psi_analysis():
             checked += 1
             if n_tau != n_s - 2 * C:
                 bad.append((p, k))
-            parts.append(pd.DataFrame(dict(particle_id=ids, prd=p, topo=k, sorted=sorted_pos, frame=frame, fate=fate)))
+            parts.append(pd.DataFrame(dict(particle_id=ids, prd=p, topo=k, psi_index=sorted_pos, frame=frame, fate=fate)))
     if not parts:
         raise FileNotFoundError("no psi_analysis files")
     table = pd.concat(parts, ignore_index=True)
@@ -238,8 +238,8 @@ def build_probability_landscape():
             along = dm["psi"][pos_psi1, int(psinums[x])]
             if not (np.array_equal(np.sort(pos_psi1), np.arange(n_s)) and np.all(np.diff(along) >= 0)):
                 sort_bad.append(x)
-        parts.append(pd.DataFrame(dict(particle_id=ids, prd=x, C=C, retained=np.arange(n_s),
-                                       topo=-1 if psinums is None else int(psinums[x]), sorted=sorted_pos,
+        parts.append(pd.DataFrame(dict(particle_id=ids, prd=x, C=C, retained_index=np.arange(n_s),
+                                       topo=-1 if psinums is None else int(psinums[x]), psi_index=sorted_pos,
                                        frame=frame, tau=tau, fate=fate)))
     table = pd.concat(parts, ignore_index=True)
 
@@ -412,11 +412,11 @@ def build_mapper():
     table = read_group("calc_distance")
     fate = table.fate.where(table.fate != "Kept", "In a PD")
     if have["manifold-analysis"]:
-        ma = read_group("manifold_analysis")[["particle_id", "prd", "retained", "fate"]]
+        ma = read_group("manifold_analysis")[["particle_id", "prd", "retained_index", "fate"]]
         table = table.merge(ma.rename(columns={"fate": "fate_ma"}), on=["particle_id", "prd"], how="left")
         fate = fate.where(table.fate_ma != "Trimmed", "Trimmed").where(table.fate_ma != "Kept", "Retained")
     if have["probability-landscape"]:
-        pl = read_group("probability_landscape").drop(columns=["retained"])
+        pl = read_group("probability_landscape").drop(columns=["retained_index"])
         table = table.merge(pl.rename(columns={"fate": "fate_pl"}), on=["particle_id", "prd"], how="left")
         selected = set(group_info("probability_landscape")["settings"].get("xSelect", []))
         fate = fate.where(~((fate == "Retained") & ~table.prd.isin(selected)), "PD not selected")
@@ -438,7 +438,7 @@ def build_mapper():
         if col not in table:
             table[col] = np.nan
     table = table[MAPPER]
-    for col in ["prd", "C", "place", "retained", "topo", "sorted", "frame", "state", "image"]:
+    for col in ["prd", "C", "pd_index", "retained_index", "topo", "psi_index", "frame", "state", "image"]:
         table[col] = pd.to_numeric(table[col]).fillna(-1).astype(int)
     table["movie_frames"] = table.movie_frames.fillna("").astype(str)
     return table.sort_values(["particle_id", "prd", "state"]).reset_index(drop=True)
@@ -480,10 +480,10 @@ def trace_image(mapper, state, image):
     r = row.iloc[0]
     return [f"Image {image} of state {state} back to its particle",
             f"  trajectory             image {image} of state {state}  PD {r.prd}, frame m = {r.frame}",
-            f"  probability_landscape  frame m = {r.frame}  sorted s = {r.sorted} (topo {r.topo}, C = {r.C})",
-            f"  probability_landscape  sorted s = {r.sorted}  retained j = {r.retained} (PosPsi1)",
-            f"  manifold_analysis      retained j = {r.retained}  place i = {r.place} (posPath)",
-            f"  calc_distance          place i = {r.place}  particle ID {r.particle_id} (ind)" + (", mirrored" if r.mirrored else "")]
+            f"  probability_landscape  frame m = {r.frame}  psi_index s = {r.psi_index} (topo {r.topo}, C = {r.C})",
+            f"  probability_landscape  psi_index s = {r.psi_index}  retained_index j = {r.retained_index} (PosPsi1)",
+            f"  manifold_analysis      retained_index j = {r.retained_index}  pd_index i = {r.pd_index} (posPath)",
+            f"  calc_distance          pd_index i = {r.pd_index}  particle ID {r.particle_id} (ind)" + (", mirrored" if r.mirrored else "")]
 
 
 def trace_particle(mapper, pid):
@@ -492,7 +492,7 @@ def trace_particle(mapper, pid):
         return [f"Particle ID {pid} is not in the mapper"]
     out = [f"Particle ID {pid}" + (", mirrored" if rows.mirrored.iloc[0] else "")]
     for r in rows.itertuples(index=False):
-        numbers = [f"{name} {getattr(r, name)}" for name in ("prd", "place", "retained", "sorted", "frame", "state", "image")
+        numbers = [f"{name} {getattr(r, name)}" for name in ("prd", "pd_index", "retained_index", "psi_index", "frame", "state", "image")
                    if getattr(r, name) >= 0]
         out.append("  " + ", ".join(numbers + [r.fate]))
     return out
@@ -500,12 +500,12 @@ def trace_particle(mapper, pid):
 
 def trace_prd(mapper, prd):
     rows = mapper[mapper.prd == prd]
-    rows = rows.assign(no_frame=rows.frame < 0).sort_values(["no_frame", "frame", "place"])  # frames first
+    rows = rows.assign(no_frame=rows.frame < 0).sort_values(["no_frame", "frame", "pd_index"])  # frames first
     if rows.empty:
         return [f"PD {prd} is not in the mapper"]
-    out = [f"PD {prd}, {len(rows)} rows", f"  {'Place':>6} {'Retained':>9} {'Sorted':>7} {'Frame':>6} {'Particle ID':>12} {'State':>6} {'Image':>6}  Fate"]
+    out = [f"PD {prd}, {len(rows)} rows", f"  {'pd_index':>8} {'retained_index':>14} {'psi_index':>9} {'Frame':>6} {'Particle ID':>12} {'State':>6} {'Image':>6}  Fate"]
     for r in rows.itertuples(index=False):
-        out.append(f"  {r.place:>6} {r.retained:>9} {r.sorted:>7} {r.frame:>6} {r.particle_id:>12} {r.state:>6} {r.image:>6}  {r.fate}")
+        out.append(f"  {r.pd_index:>8} {r.retained_index:>14} {r.psi_index:>9} {r.frame:>6} {r.particle_id:>12} {r.state:>6} {r.image:>6}  {r.fate}")
     return out
 
 

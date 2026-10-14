@@ -119,8 +119,8 @@ def test_mapper_chain_matches_the_state_stacks(project):
         assert np.array_equal(np.rint(code[:, 2] / code[:, 0]), t.frame.values)
     for r in in_state.itertuples(index=False):
         s = r.frame + r.C - 1
-        assert r.sorted == s and posPsi1All[r.prd][s] == r.retained
-        assert posPathAll[r.prd][r.retained] == r.place and ind[r.prd][r.place] == r.particle_id
+        assert r.psi_index == s and posPsi1All[r.prd][s] == r.retained_index
+        assert posPathAll[r.prd][r.retained_index] == r.pd_index and ind[r.prd][r.pd_index] == r.particle_id
 
 
 def test_left_out_pd_is_marked_not_selected(project):

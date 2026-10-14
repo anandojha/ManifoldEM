@@ -216,11 +216,11 @@ and prints the checks of that step. `--no-tracker` turns it off for one command.
 
 | Group in `tracker.h5` | Number of each particle at that step |
 |---|---|
-| `calc_distance` | place = index in `ind` of the PD |
-| `manifold_analysis` | retained = position in `posPath` (or trimmed) |
-| `psi_analysis` | sorted and frame for every topo |
+| `calc_distance` | pd_index = index in `ind` of the PD |
+| `manifold_analysis` | retained_index = position in `posPath` (or trimmed) |
+| `psi_analysis` | psi_index and frame for every topo |
 | `find_ccs` | chosen topo and sense of each PD |
-| `probability_landscape` | sorted and frame for the chosen topo, frame = sorted - C + 1 |
+| `probability_landscape` | psi_index and frame for the chosen topo, frame = psi_index - C + 1 |
 | `trajectory` | state and image in the state stack |
 | `mapper` | all of the above in one row per particle and PD, with its fate |
 
