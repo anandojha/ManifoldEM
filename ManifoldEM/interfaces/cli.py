@@ -121,6 +121,15 @@ def get_parser():
                                 help="Numbers of every particle of a PD")
     tracker_parser.add_argument("--csv", action="store_true", help="Export the mapper to output/<project_name>/particle_index.csv")
 
+    progress_parser = utility_subparsers.add_parser("progress", help="Progress of a run from the files each step writes, live with --watch",
+                                                    formatter_class=ArgumentDefaultsHelpFormatter)
+    progress_parser.add_argument("input_file", type=str)
+    progress_parser.add_argument("--watch", type=int, metavar="SECONDS", default=0,
+                                 help="Redraw every SECONDS until the trajectory step is done")
+    progress_parser.add_argument("--json", action="store_true",
+                                 help="Write output/<project_name>/progress.json and append every snapshot to progress.jsonl")
+    progress_parser.add_argument("--grid", action=BooleanOptionalAction, default=True, help="Draw one box per PD for every step")
+
     return parser
 
 
@@ -309,6 +318,11 @@ def tracker_utility(args):
                trace_particles=args.trace_particle, trace_prds=args.trace_prd, csv=args.csv)
 
 
+def progress_utility(args):
+    from ManifoldEM import progress
+    progress.op(watch=args.watch, json_out=args.json, grid=args.grid)
+
+
 _funcs = {
     "init": init,
     "threshold": threshold,
@@ -322,6 +336,7 @@ _funcs = {
     "mrcs2mrc": mrcs2mrc,
     "denoise": denoise,
     "tracker": tracker_utility,
+    "progress": progress_utility,
 }
 
 

@@ -244,6 +244,44 @@ step before it is reported as stale.
 | `--trace-prd PD` | Numbers of every particle of a PD |
 | `--csv` | Exports the mapper to `output/<project_name>/particle_index.csv` |
 
+#### Live progress
+
+Every step writes one file per PD (or per state) as it finishes that unit. `utility progress` counts
+those files and reports how far a run got, with the particles that reached each step and the state of
+the tracker. It reads the output folder only, so it works on a running job from a second terminal.
+
+```
+% manifold-cli utility progress params_my_J310_analysis.toml
+% manifold-cli utility progress --watch 60 --json params_my_J310_analysis.toml
+```
+
+```
+Run my_J310_analysis  53 PDs  50 states  2026-10-14 12:04:11
+  Step                   Done             Particles                    Tracker
+  threshold              1 of 1 file      12,276 in a PD
+  calc-distance          53 of 53 PDs     12,276 in a PD               recorded  0 failed
+  manifold-analysis      53 of 53 PDs     12,248 retained              recorded  0 failed
+  psi-analysis           31 of 53 PDs                                  blank
+  nlsa-movie             0 of 53 PDs
+  find-ccs               0 of 53 PDs                                   blank
+  probability-landscape  0 of 53 PDs      0 with an NLSA frame         blank
+  trajectory             0 of 50 states   0 in a state                 blank
+
+  calc-distance          ########## ########## ########## ########## ########## ###
+  manifold-analysis      ########## ########## ########## ########## ########## ###
+  psi-analysis           ########## ########## ########## #......... .......... ...
+  ...
+```
+
+| Option | Does |
+|---|---|
+| None | Prints the table and the grid once |
+| `--watch SECONDS` | Redraws every SECONDS until the trajectory step is done |
+| `--json` | Writes `output/<project_name>/progress.json` and appends every snapshot to `progress.jsonl` |
+| `--no-grid` | Leaves out the grid |
+
+A step with more than 100 units draws a percent bar instead of one box per unit.
+
 
 ### Python/Jupyter interface
 Researchers/the curious are possibly interested in various things "under the hood" in
