@@ -86,11 +86,14 @@ def _star_rows(path):
 
 
 def _tracker_info(step):
-    info = tracker.group_info(step.replace("-", "_"))
-    if info is None:
-        return dict(state="blank", failed=None)
-    stale = any(s[0] == step and s[1] == "stale" for s in tracker.status())
-    return dict(state="stale" if stale else "recorded", failed=int(sum(c[2] for c in info["checks"])))
+    try:
+        info = tracker.group_info(step.replace("-", "_"))
+        if info is None:
+            return dict(state="blank", failed=None)
+        stale = any(s[0] == step and s[1] == "stale" for s in tracker.status())
+        return dict(state="stale" if stale else "recorded", failed=int(sum(c[2] for c in info["checks"])))
+    except OSError:  # the pipeline is writing tracker.h5 at this moment
+        return dict(state="writing", failed=None)
 
 
 def snapshot():

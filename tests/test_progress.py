@@ -100,3 +100,14 @@ def test_progress_utility_parses():
     args = cli.get_parser().parse_args(["utility", "progress", "params_x.toml", "--watch", "30", "--json", "--no-grid"])
     assert (args.command, args.watch, args.json, args.grid) == ("progress", 30, True, False)
     assert cli.get_parser().parse_args(["utility", "progress", "params_x.toml"]).watch == 0
+
+
+def test_tracker_being_written_reads_as_writing(project, monkeypatch):
+    fake_run(np.random.default_rng(3))
+    tracker.record("calc-distance", quiet=True)
+
+    def busy(name):
+        raise OSError("unable to lock file")
+    monkeypatch.setattr(tracker, "group_info", busy)
+    s = by_step(progress.snapshot())
+    assert s["calc-distance"]["tracker"] == dict(state="writing", failed=None)
